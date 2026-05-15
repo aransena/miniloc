@@ -1,0 +1,9 @@
+.gradle/
+.venv/
+build/
+app/build/
+local.properties
+tools/__pycache__/
+python_api_bundle/**/__pycache__/
+*.pyc
+miniloc_pairing_qr.png
