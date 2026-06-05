@@ -1,8 +1,27 @@
 # miniloc
 
+Version: `0.1.1`
+
 `miniloc` is a minimal native Android app that turns a phone into a local-network location sensor for one paired host device.
 
 The app uses camera QR pairing, a foreground fused-location service, and a local HTTP server on port `47654`. It does not use cloud services, login, maps, analytics, mDNS, or product-specific naming.
+
+## Scope
+
+`miniloc` is intentionally limited to local, user-confirmed phone location sharing for a paired host on the same LAN.
+
+Out of scope for this project:
+
+- Cloud services, relay servers, remote dashboards, or internet-facing APIs.
+- User accounts, login flows, device fleets, organization management, or multi-tenant access control.
+- Maps, route visualization, geofencing, trip playback, or GIS analysis.
+- Analytics, telemetry, crash-reporting services, advertising SDKs, or product-specific branding.
+- mDNS, NSD, Bluetooth discovery, cellular discovery, or cross-network traversal.
+- Silent remote start of location sharing. The phone user must scan/paste a pairing payload and locally confirm sharing.
+- Background-only or hidden tracking without an Android foreground service notification.
+- Multiple active host pairings. The MVP supports one paired host at a time.
+- Cryptographic request signing beyond the MVP header token. Future HMAC support can be added without changing the local-first model.
+- A packaging/distribution channel beyond the debug APK and copy-in Python API bundle.
 
 ## Build
 
@@ -18,6 +37,21 @@ Debug APK:
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
+```
+
+## Tests
+
+Run the Python API bundle contract tests:
+
+```bash
+cd python_api_bundle
+PYTHONPATH=. python3 -m unittest discover -s tests
+```
+
+Verify the Android debug build:
+
+```bash
+./gradlew assembleDebug
 ```
 
 Install with:
@@ -139,6 +173,20 @@ python3 tools/miniloc_poll.py 192.168.4.23 \
 `age_ms` is the age of the latest cached phone fix at response time. Smaller is better. If you poll once per second and see values like `122`, `347`, `556`, the phone is receiving newer fixes between polls; if the cache were stuck, `age_ms` would rise by about `1000 ms` on each poll. Use `fix_sequence` or compact `fix_delta_ms` to measure the actual phone-side fix cadence.
 
 `delivery_latency_ms` is the delay between Android's fix timestamp and when miniloc received that fix from the fused-location callback. If this grows or `source_batch_size` is greater than `1`, Android is batching fixes before delivering them to the app. miniloc sorts each callback batch by timestamp and only lets newer fixes replace the latest cached fix.
+
+## Hardware Validation
+
+The `0.1.1` baseline follows successful hardware testing of the MVP flow:
+
+- The Android app builds, installs, launches, and accepts QR pairing.
+- The phone user can locally confirm sharing and receives a persistent foreground-service notification.
+- The local HTTP server is reachable from a same-LAN host on port `47654`.
+- `/id_ping` supports subnet discovery without returning location data.
+- Authenticated `/status`, `/loc_ping`, and `/loc_history` work with the paired host ID and token.
+- Polling diagnostics show usable cached-fix updates for the tested hardware setup.
+- The phone UI can stop sharing and forget the pairing.
+
+When validating a new deployment, record the phone model, Android version, Wi-Fi/LAN setup, polling interval, screen-lock behavior, typical `age_ms`, and whether `fix_sequence` advances at the expected cadence.
 
 ## HTTP API
 

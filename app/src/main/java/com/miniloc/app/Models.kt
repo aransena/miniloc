@@ -6,7 +6,7 @@ import android.os.BatteryManager
 import java.time.Instant
 
 const val MINILOC_PORT = 47654
-const val APP_VERSION = "0.1.0"
+const val APP_VERSION = "0.1.1"
 
 data class HostPairing(
     val hostId: String,
