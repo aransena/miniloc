@@ -1,0 +1,10 @@
+{
+  "type": "miniloc_pair",
+  "version": 1,
+  "host_id": "host-7K3P",
+  "host_name": "Field Recorder 7K3P",
+  "pairing_token": "fixed-256-bit-token-for-contract-tests",
+  "issued_at": "2026-06-15T10:28:26Z",
+  "expires_in_s": 600,
+  "miniloc_port": 47654
+}

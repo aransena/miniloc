@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.content.ContextCompat
@@ -27,6 +28,13 @@ class LocationForegroundService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationCallback: LocationCallback? = null
     private var httpServer: MinilocHttpServer? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val expiryStopRunnable = Runnable {
+        if (PairingStore.get(this) == null) {
+            LocationCache.clear()
+            stopSelf()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -50,6 +58,7 @@ class LocationForegroundService : Service() {
             running.set(true)
             startHttpServer(pairing.minilocPort)
             startLocationUpdates()
+            scheduleExpiryStop(pairing)
             START_STICKY
         } catch (error: Exception) {
             running.set(false)
@@ -61,6 +70,7 @@ class LocationForegroundService : Service() {
     override fun onDestroy() {
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
         locationCallback = null
+        mainHandler.removeCallbacks(expiryStopRunnable)
         httpServer?.stop()
         httpServer = null
         running.set(false)
@@ -93,14 +103,7 @@ class LocationForegroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
-
-        return builder
+        return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("miniloc active")
             .setContentText("Sharing location with ${pairing.hostName}")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
@@ -111,7 +114,6 @@ class LocationForegroundService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             CHANNEL_ID,
             "miniloc location",
@@ -120,6 +122,13 @@ class LocationForegroundService : Service() {
         channel.description = "Location sharing status"
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
+    }
+
+    private fun scheduleExpiryStop(pairing: HostPairing) {
+        mainHandler.removeCallbacks(expiryStopRunnable)
+        val expiresAtMillis = pairing.expiresAtMillis ?: return
+        val delayMs = (expiresAtMillis - System.currentTimeMillis()).coerceAtLeast(0L)
+        mainHandler.postDelayed(expiryStopRunnable, delayMs + 100L)
     }
 
     @Throws(IOException::class)

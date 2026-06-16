@@ -1,0 +1,45 @@
+{
+  "schema": "universal.ops.service_health.v1",
+  "id": "miniloc.service_health.v1",
+  "kind": "service_health",
+  "created_at": "2026-06-15T10:28:26Z",
+  "subject": {
+    "service": "miniloc Android foreground service",
+    "api_endpoint": "GET /status",
+    "descriptor": "miniloc.api-surface.json"
+  },
+  "status": "unknown",
+  "checks": [
+    {
+      "name": "foreground_service_active",
+      "type": "readiness",
+      "source": "GET /status foreground_service_active",
+      "healthy_when": true
+    },
+    {
+      "name": "http_server_active",
+      "type": "liveness",
+      "source": "GET /status http_server_active",
+      "healthy_when": true
+    },
+    {
+      "name": "location_permission",
+      "type": "dependency",
+      "source": "GET /status location_permission",
+      "healthy_when": "granted"
+    },
+    {
+      "name": "last_fix_age_ms",
+      "type": "freshness",
+      "source": "GET /status last_fix_age_ms or GET /loc_ping age_ms",
+      "healthy_when": "deployment-specific threshold"
+    }
+  ],
+  "metrics": [
+    { "name": "last_fix_age_ms", "unit": "milliseconds" },
+    { "name": "last_fix_accuracy_m", "unit": "meters" },
+    { "name": "recent_fix_count", "unit": "count" },
+    { "name": "battery_pct", "unit": "percent" }
+  ],
+  "incidents": []
+}

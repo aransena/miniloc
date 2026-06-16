@@ -44,19 +44,19 @@ object LocationCache {
                 lon = location.longitude,
                 horizontalAccuracyM = if (location.hasAccuracy()) location.accuracy else null,
                 altitudeM = if (location.hasAltitude()) location.altitude else null,
-                verticalAccuracyM = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
+                verticalAccuracyM = if (location.hasVerticalAccuracy()) {
                     location.verticalAccuracyMeters
                 } else {
                     null
                 },
                 speedMps = if (location.hasSpeed()) location.speed else null,
-                speedAccuracyMps = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasSpeedAccuracy()) {
+                speedAccuracyMps = if (location.hasSpeedAccuracy()) {
                     location.speedAccuracyMetersPerSecond
                 } else {
                     null
                 },
                 bearingDeg = if (location.hasBearing()) location.bearing else null,
-                bearingAccuracyDeg = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasBearingAccuracy()) {
+                bearingAccuracyDeg = if (location.hasBearingAccuracy()) {
                     location.bearingAccuracyDegrees
                 } else {
                     null

@@ -1,0 +1,117 @@
+{
+  "schema": "universal.core.api_surface.v1",
+  "id": "miniloc.api_surface.v1",
+  "kind": "api_surface",
+  "transport": {
+    "type": "request_response",
+    "protocol": "HTTP/1.1",
+    "base_url": "http://<phone-ip>:47654",
+    "binding": "0.0.0.0:47654",
+    "network_scope": "same_lan"
+  },
+  "endpoints": [
+    {
+      "operation": "identify_device",
+      "method": "GET",
+      "path": "/id_ping",
+      "auth": "none",
+      "location_data": false,
+      "response_schema": "../schemas/id-ping-response.v1.schema.json",
+      "error_schema": "../schemas/error-response.v1.schema.json",
+      "examples": ["../fixtures/api/id-ping.paired.json"]
+    },
+    {
+      "operation": "service_status",
+      "method": "GET",
+      "path": "/status",
+      "auth": "paired_host_token",
+      "response_schema": "../schemas/status-response.v1.schema.json",
+      "error_schema": "../schemas/error-response.v1.schema.json",
+      "examples": ["../fixtures/api/status.active.json"]
+    },
+    {
+      "operation": "latest_location",
+      "method": "GET",
+      "path": "/loc_ping",
+      "auth": "paired_host_token",
+      "response_schema": "../schemas/loc-ping-response.v1.schema.json",
+      "error_schema": "../schemas/error-response.v1.schema.json",
+      "examples": ["../fixtures/api/loc-ping.ok.json", "../fixtures/api/loc-ping.no-fix.json"]
+    },
+    {
+      "operation": "location_history",
+      "method": "GET",
+      "path": "/loc_history",
+      "auth": "paired_host_token",
+      "response_schema": "../schemas/loc-history-response.v1.schema.json",
+      "error_schema": "../schemas/error-response.v1.schema.json",
+      "examples": ["../fixtures/api/loc-history.ok.json"]
+    },
+    {
+      "operation": "forget_pairing",
+      "method": "POST",
+      "path": "/forget_pairing",
+      "auth": "paired_host_token",
+      "response_schema": "../schemas/forget-pairing-response.v1.schema.json",
+      "error_schema": "../schemas/error-response.v1.schema.json",
+      "examples": ["../fixtures/api/forget-pairing.ok.json"],
+      "side_effects": ["clear_pairing", "clear_cached_location", "stop_foreground_service"]
+    }
+  ],
+  "schemas": {
+    "pairing_payload": "../schemas/pairing-payload.v1.schema.json",
+    "id_ping_response": "../schemas/id-ping-response.v1.schema.json",
+    "status_response": "../schemas/status-response.v1.schema.json",
+    "location_fix": "../schemas/location-fix.v1.schema.json",
+    "loc_ping_response": "../schemas/loc-ping-response.v1.schema.json",
+    "loc_history_response": "../schemas/loc-history-response.v1.schema.json",
+    "forget_pairing_response": "../schemas/forget-pairing-response.v1.schema.json",
+    "error_response": "../schemas/error-response.v1.schema.json"
+  },
+  "examples": {
+    "pairing_payload": "../fixtures/api/pairing-payload.valid.json",
+    "unauthorized": "../fixtures/api/error.unauthorized.json"
+  },
+  "openapi": {
+    "version": "3.1.0",
+    "path": "../openapi/miniloc.openapi.json"
+  },
+  "auth": {
+    "type": "bearer_token_headers",
+    "headers": ["X-Miniloc-Host-Id", "X-Miniloc-Token"],
+    "token_source": "QR pairing payload accepted by local phone confirmation",
+    "expiry": "Pairing expires at issued_at + expires_in_s and is cleared locally when expired.",
+    "transport_security": "Plain HTTP; intended only for trusted same-LAN use."
+  },
+  "limits": {
+    "default_port": 47654,
+    "socket_read_timeout_ms": 5000,
+    "latest_fix_stale_after_ms": 10000,
+    "recent_fix_limit": 10,
+    "recommended_poll_interval_s": 0.2,
+    "payload_size": "small_json_objects"
+  },
+  "compatibility": {
+    "version": "0.1.2",
+    "stable_fields": [
+      "endpoint paths and methods",
+      "authentication header names",
+      "type and ok response fields",
+      "location coordinate and timing field names",
+      "pairing payload required fields"
+    ],
+    "diagnostic_fields": [
+      "battery_pct",
+      "source_batch_size",
+      "source_batch_index",
+      "delivery_latency_ms",
+      "recent_fixes"
+    ],
+    "breaking_changes_require": "version bump plus README, Universal Contracts, JSON Schema, OpenAPI, fixture, and Python contract-test updates",
+    "non_breaking_changes": [
+      "adding optional response fields",
+      "adding new diagnostic enum values when documented",
+      "adding new examples or schemas without changing existing field meaning"
+    ]
+  }
+}

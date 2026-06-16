@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://miniloc.local/schemas/loc-history-response.v1.schema.json",
+  "title": "miniloc /loc_history response",
+  "type": "object",
+  "required": ["type", "ok", "host_id", "count", "max_count", "fixes"],
+  "properties": {
+    "type": { "const": "loc_history" },
+    "ok": { "const": true },
+    "host_id": { "type": "string" },
+    "count": { "type": "integer", "minimum": 0 },
+    "max_count": { "type": "integer", "minimum": 1 },
+    "fixes": {
+      "type": "array",
+      "items": { "$ref": "location-fix.v1.schema.json" },
+      "maxItems": 10
+    }
+  },
+  "additionalProperties": true
+}

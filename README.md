@@ -1,6 +1,6 @@
 # miniloc
 
-Version: `0.1.1`
+Version: `0.1.2`
 
 `miniloc` is a minimal native Android app that turns a phone into a local-network location sensor for one paired host device.
 
@@ -21,7 +21,8 @@ Out of scope for this project:
 - Background-only or hidden tracking without an Android foreground service notification.
 - Multiple active host pairings. The MVP supports one paired host at a time.
 - Cryptographic request signing beyond the MVP header token. Future HMAC support can be added without changing the local-first model.
-- A packaging/distribution channel beyond the debug APK and copy-in Python API bundle.
+- Cloud or store distribution. Release APK signing is supported through local
+  environment variables, but distribution remains project/operator owned.
 
 ## Build
 
@@ -39,6 +40,21 @@ Debug APK:
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
+Signed release APK:
+
+```bash
+export MINILOC_RELEASE_STORE_FILE=/absolute/path/miniloc-release.jks
+export MINILOC_RELEASE_STORE_PASSWORD='<store-password>'
+export MINILOC_RELEASE_KEY_ALIAS='<key-alias>'
+export MINILOC_RELEASE_KEY_PASSWORD='<key-password>'
+./gradlew packageSignedRelease
+```
+
+`packageSignedRelease` fails if signing variables are missing. Do not commit
+keystores or signing passwords. Android's plain `assembleRelease` task may still
+produce an unsigned variant for local inspection; use `packageSignedRelease` for
+a release candidate.
+
 ## Tests
 
 Run the Python API bundle contract tests:
@@ -52,6 +68,12 @@ Verify the Android debug build:
 
 ```bash
 ./gradlew assembleDebug
+```
+
+Run Android lint:
+
+```bash
+./gradlew lintDebug
 ```
 
 Install with:
@@ -71,6 +93,9 @@ For a specific phone serial:
 ```bash
 tools/deploy_android.sh --device 143bdfa2
 ```
+
+Before field use, run the manual hardware protocol in
+[`docs/manual-testing-protocol.md`](docs/manual-testing-protocol.md).
 
 ## Pairing
 
@@ -102,6 +127,10 @@ The QR payload format is:
   "miniloc_port": 47654
 }
 ```
+
+The payload expiry is enforced after pairing as well as during QR scanning. When
+the active pairing expires, miniloc clears the pairing, clears cached fixes, and
+stops the foreground service.
 
 ## Discovery And Polling
 
@@ -188,6 +217,10 @@ The `0.1.1` baseline follows successful hardware testing of the MVP flow:
 
 When validating a new deployment, record the phone model, Android version, Wi-Fi/LAN setup, polling interval, screen-lock behavior, typical `age_ms`, and whether `fix_sequence` advances at the expected cadence.
 
+For `0.1.2` and later, use
+[`docs/manual-testing-protocol.md`](docs/manual-testing-protocol.md) and record
+the completed checklist before treating a build as field-ready.
+
 ## HTTP API
 
 The phone binds its server to `0.0.0.0:47654`.
@@ -217,6 +250,46 @@ POST /forget_pairing
 `/id_ping` never returns location. Unauthenticated `/loc_ping` returns HTTP `401`.
 
 `/loc_ping` returns the latest cached fix and a `recent_fixes` array containing the last 10 timestamped fixes. `/loc_history` returns the same rolling list without duplicating the latest-fix top-level fields.
+
+Machine-readable API contracts:
+
+- Universal Contracts API descriptor: [`contracts/miniloc.api-surface.json`](contracts/miniloc.api-surface.json)
+- OpenAPI 3.1 descriptor: [`openapi/miniloc.openapi.json`](openapi/miniloc.openapi.json)
+- JSON Schemas: [`schemas/`](schemas/)
+- API fixtures: [`fixtures/api/`](fixtures/api/)
+
+Compatibility rules:
+
+- Stable fields: endpoint paths/methods, auth header names, response `type` and
+  `ok`, location coordinate/timing field names, and required pairing payload
+  fields.
+- Diagnostic fields: `battery_pct`, `source_batch_size`,
+  `source_batch_index`, `delivery_latency_ms`, and `recent_fixes`; consumers
+  should tolerate missing or additional diagnostic fields unless a schema marks
+  them required.
+- Breaking changes require a version bump and synchronized updates to README,
+  Universal Contracts, JSON Schemas, OpenAPI, fixtures, and Python contract
+  tests.
+- Non-breaking changes may add optional fields, examples, schemas, or endpoints
+  without changing existing field meaning.
+
+## Universal Contracts
+
+miniloc declares a Universal Contracts bundle in
+[`contracts/miniloc.manifest.json`](contracts/miniloc.manifest.json). The bundle
+selects:
+
+- `universal.profile.cli_tool_package.v1` for Gradle, deploy, pairing,
+  discovery, and polling commands.
+- `universal.profile.edge_telemetry_module.v1` for the phone-side live telemetry
+  surface, with project-local limits documented in
+  [`contracts/README.md`](contracts/README.md).
+
+The current conformance target is `portable`: descriptors, command surfaces,
+API endpoints, permissions, environment requirements, schemas, and manual test
+protocols are discoverable. Strict edge-telemetry conformance is intentionally
+partial because miniloc exposes live HTTP location responses and does not create
+persisted stream bundles, fleet deployments, OTA updates, or cloud sync.
 
 ## Troubleshooting
 

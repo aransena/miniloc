@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://miniloc.local/schemas/loc-ping-response.v1.schema.json",
+  "title": "miniloc /loc_ping response",
+  "type": "object",
+  "required": ["type", "ok", "recent_fixes"],
+  "properties": {
+    "type": { "const": "loc_pong" },
+    "ok": { "type": "boolean" },
+    "host_id": { "type": "string" },
+    "fix_status": { "enum": ["no_fix", "stale"] },
+    "last_fix_age_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "last_fix_accuracy_m": { "type": ["number", "null"], "minimum": 0 },
+    "fix_sequence": { "type": "integer", "minimum": 1 },
+    "phone_wall_time_ms": { "type": "integer", "minimum": 0 },
+    "cache_received_wall_time_ms": { "type": "integer", "minimum": 0 },
+    "cache_received_elapsed_realtime_ns": { "type": "integer", "minimum": 0 },
+    "elapsed_realtime_ns": { "type": "integer", "minimum": 0 },
+    "age_ms": { "type": "integer", "minimum": 0 },
+    "delivery_latency_ms": { "type": "integer", "minimum": 0 },
+    "source_batch_size": { "type": "integer", "minimum": 1 },
+    "source_batch_index": { "type": "integer", "minimum": 0 },
+    "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+    "lon": { "type": "number", "minimum": -180, "maximum": 180 },
+    "horizontal_accuracy_m": { "type": ["number", "null"], "minimum": 0 },
+    "altitude_m": { "type": ["number", "null"] },
+    "vertical_accuracy_m": { "type": ["number", "null"], "minimum": 0 },
+    "speed_mps": { "type": ["number", "null"], "minimum": 0 },
+    "speed_accuracy_mps": { "type": ["number", "null"], "minimum": 0 },
+    "bearing_deg": { "type": ["number", "null"], "minimum": 0, "maximum": 360 },
+    "bearing_accuracy_deg": { "type": ["number", "null"], "minimum": 0 },
+    "provider": { "type": "string" },
+    "mock": { "type": "boolean" },
+    "battery_pct": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+    "recent_fixes": {
+      "type": "array",
+      "items": { "$ref": "location-fix.v1.schema.json" },
+      "maxItems": 10
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "ok": { "const": true } },
+        "required": ["ok"]
+      },
+      "then": {
+        "required": [
+          "host_id",
+          "fix_sequence",
+          "phone_wall_time_ms",
+          "cache_received_wall_time_ms",
+          "cache_received_elapsed_realtime_ns",
+          "elapsed_realtime_ns",
+          "age_ms",
+          "delivery_latency_ms",
+          "source_batch_size",
+          "source_batch_index",
+          "lat",
+          "lon",
+          "mock"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": true
+}

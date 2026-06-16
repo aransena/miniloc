@@ -1,0 +1,228 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "miniloc Local HTTP API",
+    "version": "0.1.2",
+    "description": "Same-LAN HTTP API exposed by an Android phone running miniloc after local QR pairing and user confirmation."
+  },
+  "servers": [
+    {
+      "url": "http://{phone_ip}:47654",
+      "description": "miniloc phone on the same LAN",
+      "variables": {
+        "phone_ip": {
+          "default": "192.168.4.23"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Discovery"
+    },
+    {
+      "name": "Location"
+    },
+    {
+      "name": "Pairing"
+    }
+  ],
+  "paths": {
+    "/id_ping": {
+      "get": {
+        "operationId": "identifyDevice",
+        "tags": ["Discovery"],
+        "summary": "Identify a miniloc phone without returning location data.",
+        "responses": {
+          "200": {
+            "description": "Device identity response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/id-ping-response.v1.schema.json"
+                }
+              }
+            },
+            "x-fixtures": ["../fixtures/api/id-ping.paired.json"]
+          }
+        }
+      }
+    },
+    "/status": {
+      "get": {
+        "operationId": "getStatus",
+        "tags": ["Location"],
+        "summary": "Return authenticated service, permission, and latest-fix status.",
+        "security": [
+          {
+            "MinilocHostId": [],
+            "MinilocToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/status-response.v1.schema.json"
+                }
+              }
+            },
+            "x-fixtures": ["../fixtures/api/status.active.json"]
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/loc_ping": {
+      "get": {
+        "operationId": "getLatestLocation",
+        "tags": ["Location"],
+        "summary": "Return the latest cached location fix or a normal no-fix/stale state.",
+        "security": [
+          {
+            "MinilocHostId": [],
+            "MinilocToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Latest location response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/loc-ping-response.v1.schema.json"
+                }
+              }
+            },
+            "x-fixtures": [
+              "../fixtures/api/loc-ping.ok.json",
+              "../fixtures/api/loc-ping.no-fix.json"
+            ]
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/loc_history": {
+      "get": {
+        "operationId": "getLocationHistory",
+        "tags": ["Location"],
+        "summary": "Return the rolling in-memory list of recent fixes.",
+        "security": [
+          {
+            "MinilocHostId": [],
+            "MinilocToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent location fixes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/loc-history-response.v1.schema.json"
+                }
+              }
+            },
+            "x-fixtures": ["../fixtures/api/loc-history.ok.json"]
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/forget_pairing": {
+      "post": {
+        "operationId": "forgetPairing",
+        "tags": ["Pairing"],
+        "summary": "Clear the active pairing, clear cached fixes, and stop sharing.",
+        "security": [
+          {
+            "MinilocHostId": [],
+            "MinilocToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pairing was cleared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/forget-pairing-response.v1.schema.json"
+                }
+              }
+            },
+            "x-fixtures": ["../fixtures/api/forget-pairing.ok.json"]
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "MinilocHostId": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Miniloc-Host-Id"
+      },
+      "MinilocToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Miniloc-Token"
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Host ID or token is missing, incorrect, or expired.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../schemas/error-response.v1.schema.json"
+            }
+          }
+        },
+        "x-fixtures": ["../fixtures/api/error.unauthorized.json"]
+      }
+    },
+    "schemas": {
+      "PairingPayload": {
+        "$ref": "../schemas/pairing-payload.v1.schema.json"
+      },
+      "IdPingResponse": {
+        "$ref": "../schemas/id-ping-response.v1.schema.json"
+      },
+      "StatusResponse": {
+        "$ref": "../schemas/status-response.v1.schema.json"
+      },
+      "LocPingResponse": {
+        "$ref": "../schemas/loc-ping-response.v1.schema.json"
+      },
+      "LocHistoryResponse": {
+        "$ref": "../schemas/loc-history-response.v1.schema.json"
+      },
+      "ForgetPairingResponse": {
+        "$ref": "../schemas/forget-pairing-response.v1.schema.json"
+      },
+      "ErrorResponse": {
+        "$ref": "../schemas/error-response.v1.schema.json"
+      }
+    }
+  },
+  "x-miniloc-pairing": {
+    "description": "The QR pairing payload is not an HTTP endpoint, but it is part of the interop contract because hosts must generate it.",
+    "schema": {
+      "$ref": "../schemas/pairing-payload.v1.schema.json"
+    },
+    "fixtures": ["../fixtures/api/pairing-payload.valid.json"]
+  }
+}

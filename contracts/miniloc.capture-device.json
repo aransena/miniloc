@@ -1,0 +1,35 @@
+{
+  "schema": "universal.capture.device.v1",
+  "id": "miniloc.android_phone_sensor.v1",
+  "kind": "software_telemetry",
+  "label": "miniloc Android phone location sensor",
+  "producer": {
+    "project": "miniloc",
+    "version": "0.1.2"
+  },
+  "capabilities": {
+    "streams": [
+      {
+        "id": "miniloc.location_stream.v1",
+        "units": {
+          "lat": "degrees",
+          "lon": "degrees",
+          "horizontal_accuracy_m": "meters",
+          "speed_mps": "meters_per_second",
+          "bearing_deg": "degrees",
+          "age_ms": "milliseconds"
+        },
+        "sample_rate_hz": "requested 5 Hz; actual cadence depends on Android, hardware, signal, and power policy",
+        "payload_format": "JSON object over authenticated HTTP"
+      }
+    ],
+    "controls": ["pair", "start_sharing", "stop_sharing", "forget_pairing"],
+    "permissions": ["camera", "precise_or_coarse_location", "post_notifications", "same_lan_network"],
+    "fixtures": ["python_api_bundle/tests/test_client.py", "docs/manual-testing-protocol.md"]
+  },
+  "runtime": {
+    "transport": "same-LAN HTTP",
+    "api_surface": "miniloc.api-surface.json",
+    "service": "Android foreground service with foregroundServiceType=location"
+  }
+}

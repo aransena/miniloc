@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://miniloc.local/schemas/status-response.v1.schema.json",
+  "title": "miniloc /status response",
+  "type": "object",
+  "required": [
+    "type",
+    "ok",
+    "app",
+    "version",
+    "instance_id",
+    "paired_host_id",
+    "port",
+    "foreground_service_active",
+    "http_server_active",
+    "location_permission",
+    "notification_permission",
+    "last_fix_sequence",
+    "last_fix_age_ms",
+    "last_fix_accuracy_m",
+    "recent_fix_count",
+    "battery_pct"
+  ],
+  "properties": {
+    "type": { "const": "status" },
+    "ok": { "const": true },
+    "app": { "const": "miniloc" },
+    "version": { "type": "string" },
+    "instance_id": { "type": "string" },
+    "paired_host_id": { "type": "string" },
+    "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+    "foreground_service_active": { "type": "boolean" },
+    "http_server_active": { "type": "boolean" },
+    "location_permission": { "enum": ["granted", "denied"] },
+    "notification_permission": { "enum": ["granted", "denied", "not_required"] },
+    "last_fix_sequence": { "type": ["integer", "null"], "minimum": 1 },
+    "last_fix_age_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "last_fix_accuracy_m": { "type": ["number", "null"], "minimum": 0 },
+    "recent_fix_count": { "type": "integer", "minimum": 0, "maximum": 10 },
+    "battery_pct": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 }
+  },
+  "additionalProperties": true
+}

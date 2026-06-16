@@ -1,0 +1,74 @@
+{
+  "schema": "universal.core.command.v1",
+  "id": "miniloc.command_surface.v1",
+  "kind": "command_surface",
+  "contracts": ["universal.cli.tool.v1", "universal.core.command.v1"],
+  "commands": [
+    {
+      "name": "assembleDebug",
+      "command": "./gradlew assembleDebug",
+      "purpose": "Build the debug APK.",
+      "outputs": ["app/build/outputs/apk/debug/app-debug.apk"],
+      "side_effects": ["may download Gradle, Android SDK, and dependencies into .gradle"]
+    },
+    {
+      "name": "lintDebug",
+      "command": "./gradlew lintDebug",
+      "purpose": "Run Android lint for the debug variant.",
+      "outputs": ["app/build/reports/lint-results-debug.html", "app/build/reports/lint-results-debug.txt"]
+    },
+    {
+      "name": "packageSignedRelease",
+      "command": "./gradlew packageSignedRelease",
+      "purpose": "Build a signed release APK.",
+      "inputs": ["MINILOC_RELEASE_STORE_FILE", "MINILOC_RELEASE_STORE_PASSWORD", "MINILOC_RELEASE_KEY_ALIAS", "MINILOC_RELEASE_KEY_PASSWORD"],
+      "outputs": ["app/build/outputs/apk/release/app-release.apk"],
+      "side_effects": ["reads release keystore outside the repo"]
+    },
+    {
+      "name": "python_api_tests",
+      "command": "cd python_api_bundle && PYTHONPATH=. python3 -m unittest discover -s tests",
+      "purpose": "Run Python API client contract tests."
+    },
+    {
+      "name": "deploy_android",
+      "command": "tools/deploy_android.sh",
+      "purpose": "Build, install, grant runtime permissions, and launch the debug APK on a connected Android phone.",
+      "side_effects": ["adb install", "adb launch", "runtime permission grants"]
+    },
+    {
+      "name": "pairing_qr",
+      "command": "python3 tools/miniloc_pairing_qr.py --host-name <name>",
+      "purpose": "Generate a short-lived QR pairing payload and PNG.",
+      "outputs": ["miniloc_pairing_qr.png", "stdout JSON payload"]
+    },
+    {
+      "name": "discover",
+      "command": "python3 tools/miniloc_discover.py --subnet <subnet> --no-poll",
+      "purpose": "Sweep an IPv4 subnet for miniloc phones.",
+      "side_effects": ["same-LAN HTTP GET /id_ping probes"]
+    },
+    {
+      "name": "poll",
+      "command": "python3 tools/miniloc_poll.py <phone-ip> --host-id <host-id> --token <token>",
+      "purpose": "Poll authenticated location data from a paired phone.",
+      "side_effects": ["same-LAN authenticated HTTP requests", "writes cache file under ~/.cache/miniloc by default"]
+    }
+  ],
+  "inputs": {
+    "files": ["README.md", "app/build.gradle.kts", "python_api_bundle/miniloc_api/client.py"],
+    "devices": ["optional connected Android phone for deploy and manual tests"],
+    "network": ["same-LAN connectivity for discovery and polling"]
+  },
+  "outputs": {
+    "stdout": "Human-readable text and JSON depending on command.",
+    "files": ["APK outputs", "QR PNG", "lint reports", "poll cache"],
+    "machine_readable_modes": ["tools/miniloc_poll.py --compact", "JSON payload printed by tools/miniloc_pairing_qr.py"]
+  },
+  "exit_codes": {
+    "0": "success",
+    "1": "validation, build, discovery, or runtime failure",
+    "2": "argument parsing or command usage failure where provided by argparse/shell",
+    "130": "keyboard interrupt for long-running polling commands"
+  }
+}

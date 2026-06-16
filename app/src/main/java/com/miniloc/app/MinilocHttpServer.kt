@@ -44,10 +44,7 @@ class MinilocHttpServer(
                 "/forget_pairing" -> {
                     if (session.method != Method.POST) methodNotAllowed()
                     else authenticated(session) {
-                        PairingStore.clear(appContext)
-                        Handler(Looper.getMainLooper()).post {
-                            appContext.stopService(Intent(appContext, LocationForegroundService::class.java))
-                        }
+                        clearPairingAndStopSharing()
                         json(Response.Status.OK, JSONObject().put("ok", true).put("pairing_cleared", true))
                     }
                 }
@@ -102,13 +99,24 @@ class MinilocHttpServer(
 
     private fun authenticated(session: IHTTPSession, block: (HostPairing) -> Response): Response {
         val pairing = PairingStore.get(appContext)
-            ?: return unauthorized()
+            ?: run {
+                clearPairingAndStopSharing()
+                return unauthorized()
+            }
         val hostId = header(session, "X-Miniloc-Host-Id")
         val token = header(session, "X-Miniloc-Token")
         if (hostId != pairing.hostId || token != pairing.pairingToken) {
             return unauthorized()
         }
         return block(pairing)
+    }
+
+    private fun clearPairingAndStopSharing() {
+        PairingStore.clear(appContext)
+        LocationCache.clear()
+        Handler(Looper.getMainLooper()).post {
+            appContext.stopService(Intent(appContext, LocationForegroundService::class.java))
+        }
     }
 
     private fun header(session: IHTTPSession, name: String): String? {

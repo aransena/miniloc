@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://miniloc.local/schemas/forget-pairing-response.v1.schema.json",
+  "title": "miniloc /forget_pairing response",
+  "type": "object",
+  "required": ["ok", "pairing_cleared"],
+  "properties": {
+    "ok": { "const": true },
+    "pairing_cleared": { "const": true }
+  },
+  "additionalProperties": true
+}

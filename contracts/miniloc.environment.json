@@ -1,0 +1,49 @@
+{
+  "schema": "universal.core.environment.v1",
+  "id": "miniloc.environment.v1",
+  "kind": "environment",
+  "runtime": {
+    "android": {
+      "min_sdk": 26,
+      "target_sdk": 35,
+      "compile_sdk": 35,
+      "foreground_service_type": "location"
+    },
+    "jvm": "Java 17 or workspace-local Temurin 17",
+    "gradle": "8.7",
+    "android_gradle_plugin": "8.5.2",
+    "kotlin": "1.9.24",
+    "python": "Python 3 standard library for python_api_bundle; httpx and qrcode[pil] for tools"
+  },
+  "dependencies": {
+    "android": [
+      "androidx.core:core-ktx",
+      "androidx.activity:activity-ktx",
+      "androidx.camera",
+      "com.google.android.gms:play-services-location",
+      "com.google.mlkit:barcode-scanning",
+      "org.nanohttpd:nanohttpd"
+    ],
+    "host_tools": ["httpx", "qrcode[pil]"],
+    "system": ["adb for deploy_android.sh"]
+  },
+  "hardware": {
+    "phone": ["Android device", "camera", "location provider", "Wi-Fi or Ethernet network"],
+    "host": ["same-LAN computer capable of running Python helper tools"]
+  },
+  "services": {
+    "local_http": "Phone binds 0.0.0.0:47654 while sharing is active.",
+    "cloud": "none",
+    "analytics": "none"
+  },
+  "variables": {
+    "ANDROID_HOME": "Optional Android SDK path.",
+    "ANDROID_SDK_ROOT": "Optional Android SDK path.",
+    "ADB": "Optional adb executable override.",
+    "MINILOC_GRADLE_VERSION": "Optional Gradle version override for ./gradlew.",
+    "MINILOC_RELEASE_STORE_FILE": "Required for packageSignedRelease.",
+    "MINILOC_RELEASE_STORE_PASSWORD": "Required for packageSignedRelease; secret value must not be committed.",
+    "MINILOC_RELEASE_KEY_ALIAS": "Required for packageSignedRelease.",
+    "MINILOC_RELEASE_KEY_PASSWORD": "Required for packageSignedRelease; secret value must not be committed."
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "type": "loc_history",
+  "ok": true,
+  "host_id": "host-7K3P",
+  "count": 1,
+  "max_count": 10,
+  "fixes": [
+    {
+      "fix_sequence": 42,
+      "phone_wall_time_ms": 1778840900123,
+      "cache_received_wall_time_ms": 1778840900201,
+      "cache_received_elapsed_realtime_ns": 123456789000000,
+      "elapsed_realtime_ns": 123456700000000,
+      "age_ms": 83,
+      "delivery_latency_ms": 89,
+      "source_batch_size": 1,
+      "source_batch_index": 0,
+      "lat": 51.5074,
+      "lon": -0.1278,
+      "horizontal_accuracy_m": 4.2,
+      "altitude_m": 35.1,
+      "vertical_accuracy_m": 6.0,
+      "speed_mps": null,
+      "speed_accuracy_mps": null,
+      "bearing_deg": null,
+      "bearing_accuracy_deg": null,
+      "provider": "fused",
+      "mock": false,
+      "battery_pct": 87
+    }
+  ]
+}

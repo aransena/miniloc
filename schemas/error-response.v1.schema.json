@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://miniloc.local/schemas/error-response.v1.schema.json",
+  "title": "miniloc error response",
+  "type": "object",
+  "required": ["ok", "error"],
+  "properties": {
+    "ok": { "const": false },
+    "error": {
+      "type": "string",
+      "description": "Known stable values include unauthorized, not_found, method_not_allowed, and internal_error. Unexpected internal exception messages may also appear."
+    }
+  },
+  "x-known_error_values": ["unauthorized", "not_found", "method_not_allowed", "internal_error"],
+  "additionalProperties": true
+}

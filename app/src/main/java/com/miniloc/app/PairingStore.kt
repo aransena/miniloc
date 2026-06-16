@@ -24,7 +24,12 @@ object PairingStore {
         val issuedAt = prefs.getString(KEY_ISSUED_AT, null) ?: return null
         val expiresInSeconds = prefs.getLong(KEY_EXPIRES_IN_S, 0L)
         val port = prefs.getInt(KEY_MINILOC_PORT, MINILOC_PORT)
-        return HostPairing(hostId, hostName, token, issuedAt, expiresInSeconds, port)
+        val pairing = HostPairing(hostId, hostName, token, issuedAt, expiresInSeconds, port)
+        if (pairing.isExpired()) {
+            clear(context)
+            return null
+        }
+        return pairing
     }
 
     fun save(context: Context, pairing: HostPairing) {

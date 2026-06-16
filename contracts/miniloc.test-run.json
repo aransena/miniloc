@@ -1,0 +1,44 @@
+{
+  "schema": "universal.core.test_run.v1",
+  "id": "miniloc.release_readiness_test_run.v1",
+  "kind": "test_run",
+  "created_at": "2026-06-15T10:28:26Z",
+  "producer": {
+    "project": "miniloc",
+    "version": "0.1.2",
+    "command": "release_readiness_protocol"
+  },
+  "contracts": [
+    "universal.core.test_run.v1",
+    "universal.core.command.v1",
+    "universal.core.api_surface.v1",
+    "universal.edge.telemetry_control.v1"
+  ],
+  "inputs": {
+    "fixtures": ["python_api_bundle/tests/test_client.py", "../fixtures/api"],
+    "manual_protocol": "../docs/manual-testing-protocol.md",
+    "environment": "miniloc.environment.json",
+    "services": ["Android phone on same LAN for manual tests"]
+  },
+  "results": {
+    "status": "pending_manual_hardware_validation",
+    "pass": 0,
+    "fail": 0,
+    "skip": 0,
+    "error": 0,
+    "required_before_field_release": [
+      "python_api_tests",
+      "assembleDebug",
+      "lintDebug",
+      "packageSignedRelease with signing env vars",
+      "manual_testing_protocol"
+    ]
+  },
+  "files": {
+    "manual_protocol": "../docs/manual-testing-protocol.md",
+    "api_fixtures": "../fixtures/api",
+    "openapi": "../openapi/miniloc.openapi.json",
+    "lint_report": "../app/build/reports/lint-results-debug.html",
+    "python_tests": "../python_api_bundle/tests/test_client.py"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schema": "universal.core.stream.v1",
+  "id": "miniloc.location_stream.v1",
+  "kind": "timeseries",
+  "record_format": "live_http_json",
+  "message_schema": "../schemas/location-fix.v1.schema.json",
+  "files": {
+    "message_schema": "../schemas/location-fix.v1.schema.json",
+    "api_surface": "miniloc.api-surface.json"
+  },
+  "timestamps": {
+    "primary": "elapsed_realtime_ns",
+    "wall_clock": "phone_wall_time_ms",
+    "cache_received_wall_clock": "cache_received_wall_time_ms",
+    "clock_semantics": "Android fused-location elapsedRealtimeNanos is monotonic and used for fix ordering; phone_wall_time_ms is Unix epoch milliseconds from the Location object when available."
+  },
+  "stats": {
+    "record_count": "unbounded live stream",
+    "recent_fix_limit": 10,
+    "requested_sample_rate_hz": 5,
+    "stale_after_ms": 10000,
+    "drops": "not counted; Android may batch or throttle fused-location updates"
+  }
+}

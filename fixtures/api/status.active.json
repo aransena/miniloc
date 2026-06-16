@@ -1,0 +1,18 @@
+{
+  "type": "status",
+  "ok": true,
+  "app": "miniloc",
+  "version": "0.1.2",
+  "instance_id": "miniloc-4N9K",
+  "paired_host_id": "host-7K3P",
+  "port": 47654,
+  "foreground_service_active": true,
+  "http_server_active": true,
+  "location_permission": "granted",
+  "notification_permission": "granted",
+  "last_fix_sequence": 42,
+  "last_fix_age_ms": 83,
+  "last_fix_accuracy_m": 4.2,
+  "recent_fix_count": 1,
+  "battery_pct": 87
+}

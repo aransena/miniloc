@@ -1,0 +1,9 @@
+{
+  "type": "id_pong",
+  "app": "miniloc",
+  "version": "0.1.2",
+  "instance_id": "miniloc-4N9K",
+  "paired_host_id": "host-7K3P",
+  "auth_required": true,
+  "port": 47654
+}

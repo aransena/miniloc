@@ -1,6 +1,6 @@
 # miniloc Python API Bundle
 
-Version: `0.1.1`
+Version: `0.1.2`
 
 This directory is a copy-in Python client for consuming data from an Android phone running `miniloc`.
 
@@ -31,9 +31,16 @@ examples/
   poll_known_phone.py
 README.agent.md
 VERSION
+../schemas/
+../fixtures/api/
+../openapi/
+../contracts/
 ```
 
-The runtime client uses only Python standard library modules.
+The runtime client uses only Python standard library modules. The adjacent
+contract, schema, fixture, and OpenAPI directories are included in the dist
+bundle so copied integrations can run the contract tests without the full
+Android source tree.
 
 ## Minimal Integration
 

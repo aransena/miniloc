@@ -1,6 +1,6 @@
 """Small Python client for pulling data from miniloc phones."""
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 from .client import (
     DEFAULT_PORT,

@@ -1,0 +1,64 @@
+{
+  "schema": "universal.core.manifest.v1",
+  "id": "miniloc.contract_bundle.v1",
+  "kind": "project_contract_bundle",
+  "created_at": "2026-06-15T10:28:26Z",
+  "name": "miniloc Universal Contracts bundle",
+  "description": "Portable descriptors for the miniloc Android local location sensor and host helper tools.",
+  "producer": {
+    "project": "miniloc",
+    "version": "0.1.2",
+    "command": "manual_contract_adoption"
+  },
+  "contracts": [
+    "universal.core.manifest.v1",
+    "universal.core.project.v1",
+    "universal.core.api_surface.v1",
+    "universal.core.command.v1",
+    "universal.core.environment.v1",
+    "universal.core.permissions.v1",
+    "universal.core.test_run.v1",
+    "universal.core.stream.v1",
+    "universal.capture.device.v1",
+    "universal.edge.telemetry_control.v1",
+    "universal.ops.service_health.v1"
+  ],
+  "profiles": [
+    "universal.profile.cli_tool_package.v1",
+    "universal.profile.edge_telemetry_module.v1"
+  ],
+  "files": {
+    "project": "miniloc.project.json",
+    "api_surface": "miniloc.api-surface.json",
+    "command_surface": "miniloc.command-surface.json",
+    "environment": "miniloc.environment.json",
+    "permissions": "miniloc.permissions.json",
+    "test_run": "miniloc.test-run.json",
+    "location_stream": "miniloc.location-stream.json",
+    "capture_device": "miniloc.capture-device.json",
+    "telemetry_control": "miniloc.telemetry-control.json",
+    "service_health": "miniloc.service-health.json",
+    "manual_testing_protocol": "../docs/manual-testing-protocol.md",
+    "schemas": [
+      "../schemas/pairing-payload.v1.schema.json",
+      "../schemas/id-ping-response.v1.schema.json",
+      "../schemas/status-response.v1.schema.json",
+      "../schemas/location-fix.v1.schema.json",
+      "../schemas/loc-ping-response.v1.schema.json",
+      "../schemas/loc-history-response.v1.schema.json",
+      "../schemas/forget-pairing-response.v1.schema.json",
+      "../schemas/error-response.v1.schema.json"
+    ],
+    "openapi": "../openapi/miniloc.openapi.json",
+    "api_fixtures": "../fixtures/api"
+  },
+  "validation": {
+    "conformance_level": "portable",
+    "status": "partial",
+    "notes": [
+      "CLI profile is described for build, deploy, pairing, discovery, and polling commands.",
+      "Edge telemetry profile is limited to live local-LAN HTTP telemetry; fleet, OTA, cloud sync, and persisted stream bundles are explicit non-goals.",
+      "Manual hardware validation evidence must be recorded using docs/manual-testing-protocol.md before field release."
+    ]
+  }
+}

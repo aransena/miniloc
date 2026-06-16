@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GRADLE_VERSION="${MINILOC_GRADLE_VERSION:-7.6.4}"
+GRADLE_VERSION="${MINILOC_GRADLE_VERSION:-8.7}"
 GRADLE_USER_HOME="${GRADLE_USER_HOME:-$ROOT_DIR/.gradle}"
 export GRADLE_USER_HOME
 

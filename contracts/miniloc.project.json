@@ -1,0 +1,75 @@
+{
+  "schema": "universal.core.project.v1",
+  "id": "miniloc.project.v1",
+  "kind": "project",
+  "project": {
+    "name": "miniloc",
+    "description": "Native Android app that exposes a phone's locally confirmed location as a same-LAN HTTP sensor for one paired host.",
+    "version": "0.1.2",
+    "language": ["Kotlin", "Python", "Bash"],
+    "platforms": ["Android", "Linux host"]
+  },
+  "interfaces": [
+    {
+      "id": "miniloc.api_surface.v1",
+      "contracts": ["universal.core.api_surface.v1"],
+      "path": "miniloc.api-surface.json"
+    },
+    {
+      "id": "miniloc.command_surface.v1",
+      "contracts": ["universal.cli.tool.v1", "universal.core.command.v1"],
+      "path": "miniloc.command-surface.json"
+    },
+    {
+      "id": "miniloc.telemetry_control.v1",
+      "contracts": ["universal.edge.telemetry_control.v1", "universal.capture.device.v1"],
+      "path": "miniloc.telemetry-control.json"
+    }
+  ],
+  "commands": {
+    "build_debug": "./gradlew assembleDebug",
+    "lint": "./gradlew lintDebug",
+    "python_tests": "cd python_api_bundle && PYTHONPATH=. python3 -m unittest discover -s tests",
+    "package_release": "./gradlew packageSignedRelease",
+    "deploy_debug": "tools/deploy_android.sh",
+    "manual_protocol": "docs/manual-testing-protocol.md"
+  },
+  "entry_points": {
+    "android_app": "app/src/main/java/com/miniloc/app/MainActivity.kt",
+    "foreground_service": "app/src/main/java/com/miniloc/app/LocationForegroundService.kt",
+    "http_server": "app/src/main/java/com/miniloc/app/MinilocHttpServer.kt",
+    "python_client": "python_api_bundle/miniloc_api/client.py",
+    "host_tools": [
+      "tools/miniloc_pairing_qr.py",
+      "tools/miniloc_discover.py",
+      "tools/miniloc_poll.py",
+      "tools/deploy_android.sh"
+    ]
+  },
+  "configuration": {
+    "files": ["gradle.properties", "app/build.gradle.kts"],
+    "environment_variables": [
+      "MINILOC_GRADLE_VERSION",
+      "ANDROID_HOME",
+      "ANDROID_SDK_ROOT",
+      "ADB",
+      "MINILOC_RELEASE_STORE_FILE",
+      "MINILOC_RELEASE_STORE_PASSWORD",
+      "MINILOC_RELEASE_KEY_ALIAS",
+      "MINILOC_RELEASE_KEY_PASSWORD"
+    ],
+    "precedence": ["environment_variables", "Gradle defaults", "script defaults"]
+  },
+  "artifacts": {
+    "debug_apk": "app/build/outputs/apk/debug/app-debug.apk",
+    "release_apk": "app/build/outputs/apk/release/app-release.apk",
+    "release_apk_unsigned": "app/build/outputs/apk/release/app-release-unsigned.apk",
+    "lint_report": "app/build/reports/lint-results-debug.html"
+  },
+  "ownership": {
+    "public": ["README.md", "python_api_bundle", "tools", "contracts", "schemas", "fixtures/api", "openapi", "docs/manual-testing-protocol.md"],
+    "android_app": ["app/src/main/java/com/miniloc/app", "app/src/main/res", "app/src/main/AndroidManifest.xml"],
+    "generated": ["app/build", ".gradle", "dist"],
+    "user_editable": ["README.md", "docs/manual-testing-protocol.md", "contracts/*.json", "schemas/*.json", "fixtures/api/*.json", "openapi/*.json"]
+  }
+}

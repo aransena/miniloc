@@ -1,0 +1,57 @@
+{
+  "schema": "universal.core.permissions.v1",
+  "id": "miniloc.permissions.v1",
+  "kind": "permissions",
+  "scopes": [
+    {
+      "name": "android_camera",
+      "purpose": "Scan local host QR pairing payload."
+    },
+    {
+      "name": "android_location",
+      "purpose": "Collect cached fused location fixes after local confirmation."
+    },
+    {
+      "name": "android_notifications",
+      "purpose": "Show persistent foreground-service notification."
+    },
+    {
+      "name": "same_lan_http",
+      "purpose": "Expose location/status endpoints to the paired host on the local network."
+    },
+    {
+      "name": "adb_deploy",
+      "purpose": "Install and launch debug APK during development."
+    },
+    {
+      "name": "release_signing",
+      "purpose": "Read release keystore and passwords from environment for signed packaging."
+    }
+  ],
+  "resources": {
+    "android_permissions": [
+      "ACCESS_FINE_LOCATION",
+      "ACCESS_COARSE_LOCATION",
+      "FOREGROUND_SERVICE",
+      "FOREGROUND_SERVICE_LOCATION",
+      "POST_NOTIFICATIONS",
+      "INTERNET",
+      "ACCESS_NETWORK_STATE",
+      "CAMERA"
+    ],
+    "network": ["0.0.0.0:47654 on same LAN"],
+    "filesystem": ["app/build", ".gradle", "miniloc_pairing_qr.png", "~/.cache/miniloc/last_device.json"],
+    "secrets": ["MINILOC_RELEASE_STORE_PASSWORD", "MINILOC_RELEASE_KEY_PASSWORD", "pairing_token"]
+  },
+  "operations": {
+    "read": ["release keystore", "pairing token supplied by host"],
+    "write": ["debug/release APK outputs", "QR image output", "poll cache"],
+    "execute": ["Gradle", "adb", "Python helper tools"],
+    "delete": ["clear pairing and cached fixes through phone UI or authenticated /forget_pairing"]
+  },
+  "approval": {
+    "phone_user": ["scan pairing QR", "confirm Start sharing", "grant Android permissions", "stop or forget sharing"],
+    "developer": ["adb deploy", "release signing env vars"],
+    "network_admin": ["allow same-LAN host-to-phone connectivity when Wi-Fi client isolation is present"]
+  }
+}
