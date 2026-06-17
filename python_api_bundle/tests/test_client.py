@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from io import BytesIO
 from pathlib import Path
@@ -18,7 +19,7 @@ from miniloc_api import (
     MinilocUnauthorized,
     build_pairing_payload,
     discover_miniloc,
-    pairing_payload_json,
+    pairing_payload_message,
 )
 from miniloc_api import client as client_module
 
@@ -34,6 +35,11 @@ def load_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def load_json_value(path: Path) -> Any:
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def validate_json_schema(instance: Any, schema: dict[str, Any], schema_path: Path, path: str = "$") -> None:
     if "$ref" in schema:
         ref_path = (schema_path.parent / schema["$ref"]).resolve()
@@ -42,6 +48,18 @@ def validate_json_schema(instance: Any, schema: dict[str, Any], schema_path: Pat
 
     for subschema in schema.get("allOf", []):
         validate_json_schema(instance, subschema, schema_path, path)
+
+    if "oneOf" in schema:
+        matches = 0
+        errors = []
+        for subschema in schema["oneOf"]:
+            try:
+                validate_json_schema(instance, subschema, schema_path, path)
+                matches += 1
+            except AssertionError as error:
+                errors.append(str(error))
+        if matches != 1:
+            raise AssertionError(f"{path}: expected exactly one oneOf match, got {matches}; errors: {errors}")
 
     if "if" in schema and matches_json_schema(instance, schema["if"], schema_path):
         validate_json_schema(instance, schema.get("then", {}), schema_path, path)
@@ -79,6 +97,8 @@ def validate_json_schema(instance: Any, schema: dict[str, Any], schema_path: Pat
 
     if isinstance(instance, str) and "minLength" in schema and len(instance) < schema["minLength"]:
         raise AssertionError(f"{path}: expected minLength {schema['minLength']}, got {len(instance)}")
+    if isinstance(instance, str) and "pattern" in schema and not re.fullmatch(schema["pattern"], instance):
+        raise AssertionError(f"{path}: expected pattern {schema['pattern']!r}, got {instance!r}")
 
     if isinstance(instance, (int, float)) and not isinstance(instance, bool):
         if "minimum" in schema and instance < schema["minimum"]:
@@ -130,37 +150,58 @@ class FakeResponse:
 
 
 class ClientContractTests(unittest.TestCase):
-    def test_build_pairing_payload_is_compact_qr_json(self) -> None:
+    def test_build_pairing_payload_is_minimal_qr_message(self) -> None:
         payload = build_pairing_payload(
-            host_id="host-7K3P",
-            host_name="Field Recorder 7K3P",
-            token="fixed-token",
-            expires_in_s=600,
+            host_id="7K3P",
+            token="IFBEGRCFIZDUQSKKJNGE2TSPKB",
         )
 
-        self.assertEqual(payload["type"], "miniloc_pair")
-        self.assertEqual(payload["version"], 1)
-        self.assertEqual(payload["pairing_token"], "fixed-token")
-        self.assertEqual(payload["miniloc_port"], DEFAULT_PORT)
+        self.assertEqual(payload["scheme"], "ML1")
+        self.assertEqual(payload["host_id"], "7K3P")
+        self.assertEqual(payload["pairing_token"], "IFBEGRCFIZDUQSKKJNGE2TSPKB")
 
-        encoded = pairing_payload_json(payload)
-        self.assertNotIn(", ", encoded)
-        self.assertNotIn(": ", encoded)
-        self.assertEqual(json.loads(encoded), payload)
+        encoded = pairing_payload_message(payload)
+        self.assertEqual(encoded, "ML1:7K3P:IFBEGRCFIZDUQSKKJNGE2TSPKB")
+        self.assertLess(len(encoded), 40)
         schema_path = REPO_ROOT / "schemas/pairing-payload.v1.schema.json"
-        validate_json_schema(payload, load_json(schema_path), schema_path)
+        validate_json_schema(encoded, load_json(schema_path), schema_path)
 
-    def test_build_pairing_payload_validates_lifetime_and_port(self) -> None:
-        with self.assertRaises(ValueError):
-            build_pairing_payload("host", "Host", expires_in_s=0)
-        with self.assertRaises(ValueError):
-            build_pairing_payload("host", "Host", port=0)
+    def test_build_pairing_payload_generates_128_bit_base32_token(self) -> None:
+        payload = build_pairing_payload(host_id="7K3P")
+        token = payload["pairing_token"]
+        self.assertRegex(token, r"^[A-Z2-7]{26}$")
+        schema_path = REPO_ROOT / "schemas/pairing-payload.v1.schema.json"
+        validate_json_schema(pairing_payload_message(payload), load_json(schema_path), schema_path)
 
-    def test_authenticated_endpoint_requires_auth_object(self) -> None:
+    def test_build_pairing_payload_validates_host_and_token(self) -> None:
+        with self.assertRaises(ValueError):
+            build_pairing_payload("bad:host")
+        with self.assertRaises(ValueError):
+            build_pairing_payload("HOST", token="lowercase-token")
+
+    def test_destructive_endpoint_requires_auth_object(self) -> None:
         client = MinilocClient("192.168.4.23")
 
         with self.assertRaises(MinilocError):
-            client.status()
+            client.forget_pairing()
+
+    def test_open_lan_read_request_does_not_require_auth_headers(self) -> None:
+        seen: dict[str, object] = {}
+
+        def fake_urlopen(request, timeout):
+            seen["headers"] = {
+                key.lower(): value
+                for key, value in request.header_items()
+            }
+            return FakeResponse({"type": "status", "ok": True, "auth_required": False})
+
+        client = MinilocClient("192.168.4.23")
+        with patch.object(client_module.urllib.request, "urlopen", fake_urlopen):
+            body = client.status()
+
+        self.assertEqual(body["type"], "status")
+        self.assertNotIn("x-miniloc-host-id", seen["headers"])
+        self.assertNotIn("x-miniloc-token", seen["headers"])
 
     def test_authenticated_request_sends_host_headers(self) -> None:
         seen: dict[str, object] = {}
@@ -177,7 +218,7 @@ class ClientContractTests(unittest.TestCase):
 
         client = MinilocClient(
             "192.168.4.23",
-            auth=MinilocAuth("host-7K3P", "secret-token"),
+            auth=MinilocAuth("7K3P", "secret-token"),
             timeout_s=1.5,
         )
         with patch.object(client_module.urllib.request, "urlopen", fake_urlopen):
@@ -187,7 +228,7 @@ class ClientContractTests(unittest.TestCase):
         self.assertEqual(seen["url"], "http://192.168.4.23:47654/status")
         self.assertEqual(seen["method"], "GET")
         self.assertEqual(seen["timeout"], 1.5)
-        self.assertEqual(seen["headers"]["x-miniloc-host-id"], "host-7K3P")
+        self.assertEqual(seen["headers"]["x-miniloc-host-id"], "7K3P")
         self.assertEqual(seen["headers"]["x-miniloc-token"], "secret-token")
 
     def test_unauthorized_status_maps_to_pairing_error(self) -> None:
@@ -213,7 +254,7 @@ class ClientContractTests(unittest.TestCase):
                     ip=ip,
                     port=port,
                     instance_id="miniloc-AAAA",
-                    paired_host_id="host-A",
+                    paired_host_id="HOST-A",
                     raw={"app": "miniloc"},
                 )
             return None
@@ -221,19 +262,19 @@ class ClientContractTests(unittest.TestCase):
         with patch.object(client_module, "_probe_ip", fake_probe_ip):
             devices = discover_miniloc(
                 "192.168.4.0/30",
-                preferred_host_id="host-A",
+                preferred_host_id="HOST-A",
                 max_workers=2,
             )
 
         self.assertEqual([device.ip for device in devices], ["192.168.4.2"])
 
     def test_resolver_rediscovers_when_cached_ip_is_stale(self) -> None:
-        auth = MinilocAuth("host-A", "secret")
+        auth = MinilocAuth("HOST-A", "secret")
         discovered = MinilocDevice(
             ip="192.168.4.9",
             port=DEFAULT_PORT,
             instance_id="miniloc-ABCD",
-            paired_host_id="host-A",
+            paired_host_id="HOST-A",
             raw={"app": "miniloc"},
         )
 
@@ -243,7 +284,7 @@ class ClientContractTests(unittest.TestCase):
             return {
                 "app": "miniloc",
                 "ok": True,
-                "paired_host_id": "host-A",
+                "paired_host_id": "HOST-A",
                 "instance_id": "miniloc-ABCD",
                 "port": DEFAULT_PORT,
             }
@@ -268,10 +309,14 @@ class ClientContractTests(unittest.TestCase):
         cases = [
             ("fixtures/api/pairing-payload.valid.json", "schemas/pairing-payload.v1.schema.json"),
             ("fixtures/api/id-ping.paired.json", "schemas/id-ping-response.v1.schema.json"),
+            ("fixtures/api/id-ping.open-lan.json", "schemas/id-ping-response.v1.schema.json"),
             ("fixtures/api/status.active.json", "schemas/status-response.v1.schema.json"),
+            ("fixtures/api/status.open-lan.json", "schemas/status-response.v1.schema.json"),
             ("fixtures/api/loc-ping.ok.json", "schemas/loc-ping-response.v1.schema.json"),
+            ("fixtures/api/loc-ping.open-lan.ok.json", "schemas/loc-ping-response.v1.schema.json"),
             ("fixtures/api/loc-ping.no-fix.json", "schemas/loc-ping-response.v1.schema.json"),
             ("fixtures/api/loc-history.ok.json", "schemas/loc-history-response.v1.schema.json"),
+            ("fixtures/api/loc-history.open-lan.json", "schemas/loc-history-response.v1.schema.json"),
             ("fixtures/api/forget-pairing.ok.json", "schemas/forget-pairing-response.v1.schema.json"),
             ("fixtures/api/error.unauthorized.json", "schemas/error-response.v1.schema.json"),
         ]
@@ -280,7 +325,7 @@ class ClientContractTests(unittest.TestCase):
             with self.subTest(fixture=fixture_rel):
                 fixture_path = REPO_ROOT / fixture_rel
                 schema_path = REPO_ROOT / schema_rel
-                validate_json_schema(load_json(fixture_path), load_json(schema_path), schema_path)
+                validate_json_schema(load_json_value(fixture_path), load_json(schema_path), schema_path)
 
     def test_api_descriptor_references_schemas_and_examples_for_every_endpoint(self) -> None:
         descriptor = load_json(REPO_ROOT / "contracts/miniloc.api-surface.json")

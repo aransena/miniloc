@@ -27,18 +27,33 @@ class MinilocHttpServer(
                 }
                 "/status" -> {
                     if (session.method != Method.GET) methodNotAllowed()
-                    else authenticated(session) { pairing -> status(pairing) }
+                    else readable(session) { access -> status(access) }
                 }
                 "/loc_ping" -> {
                     if (session.method != Method.GET) methodNotAllowed()
-                    else authenticated(session) { pairing ->
-                        json(Response.Status.OK, LocationCache.toLocationJson(pairing.hostId, appContext))
+                    else readable(session) { access ->
+                        json(
+                            Response.Status.OK,
+                            LocationCache.toLocationJson(
+                                access.mode,
+                                access.pairing?.hostId,
+                                PairingStore.instanceId(appContext),
+                                appContext,
+                            ),
+                        )
                     }
                 }
                 "/loc_history" -> {
                     if (session.method != Method.GET) methodNotAllowed()
-                    else authenticated(session) { pairing ->
-                        json(Response.Status.OK, LocationCache.toHistoryJson(pairing.hostId))
+                    else readable(session) { access ->
+                        json(
+                            Response.Status.OK,
+                            LocationCache.toHistoryJson(
+                                access.mode,
+                                access.pairing?.hostId,
+                                PairingStore.instanceId(appContext),
+                            ),
+                        )
                     }
                 }
                 "/forget_pairing" -> {
@@ -60,6 +75,7 @@ class MinilocHttpServer(
 
     private fun idPing(): Response {
         val pairing = PairingStore.get(appContext)
+        val openLan = PairingStore.isOpenLanEnabled(appContext)
         return json(
             Response.Status.OK,
             JSONObject()
@@ -67,13 +83,15 @@ class MinilocHttpServer(
                 .put("app", "miniloc")
                 .put("version", APP_VERSION)
                 .put("instance_id", PairingStore.instanceId(appContext))
+                .put("access_mode", if (openLan) SharingMode.OPEN_LAN.wireName else SharingMode.PAIRED.wireName)
                 .put("paired_host_id", pairing?.hostId ?: JSONObject.NULL)
-                .put("auth_required", true)
+                .put("auth_required", !openLan)
+                .put("read_auth_required", !openLan)
                 .put("port", pairing?.minilocPort ?: MINILOC_PORT),
         )
     }
 
-    private fun status(pairing: HostPairing): Response {
+    private fun status(access: ReadAccess): Response {
         val latest = LocationCache.get()
         return json(
             Response.Status.OK,
@@ -83,8 +101,13 @@ class MinilocHttpServer(
                 .put("app", "miniloc")
                 .put("version", APP_VERSION)
                 .put("instance_id", PairingStore.instanceId(appContext))
-                .put("paired_host_id", pairing.hostId)
-                .put("port", pairing.minilocPort)
+                .put("access_mode", access.mode.wireName)
+                .put("paired_host_id", access.pairing?.hostId ?: JSONObject.NULL)
+                .put("auth_required", access.mode != SharingMode.OPEN_LAN)
+                .put("read_auth_required", access.mode != SharingMode.OPEN_LAN)
+                .put("port", access.pairing?.minilocPort ?: MINILOC_PORT)
+                .put("discovery_service_type", MINILOC_NSD_SERVICE_TYPE)
+                .put("discovery_service_name", PairingStore.serviceName(appContext))
                 .put("foreground_service_active", LocationForegroundService.isRunning())
                 .put("http_server_active", true)
                 .put("location_permission", permissionState(Manifest.permission.ACCESS_FINE_LOCATION))
@@ -97,10 +120,34 @@ class MinilocHttpServer(
         )
     }
 
+    private data class ReadAccess(
+        val mode: SharingMode,
+        val pairing: HostPairing?,
+    )
+
+    private fun readable(session: IHTTPSession, block: (ReadAccess) -> Response): Response {
+        val pairing = PairingStore.get(appContext)
+        if (PairingStore.isOpenLanEnabled(appContext)) {
+            return block(ReadAccess(SharingMode.OPEN_LAN, pairing))
+        }
+        if (pairing == null) {
+            clearPairingAndStopSharing()
+            return unauthorized()
+        }
+        val hostId = header(session, "X-Miniloc-Host-Id")
+        val token = header(session, "X-Miniloc-Token")
+        if (hostId != pairing.hostId || token != pairing.pairingToken) {
+            return unauthorized()
+        }
+        return block(ReadAccess(SharingMode.PAIRED, pairing))
+    }
+
     private fun authenticated(session: IHTTPSession, block: (HostPairing) -> Response): Response {
         val pairing = PairingStore.get(appContext)
             ?: run {
-                clearPairingAndStopSharing()
+                if (!PairingStore.isOpenLanEnabled(appContext)) {
+                    clearPairingAndStopSharing()
+                }
                 return unauthorized()
             }
         val hostId = header(session, "X-Miniloc-Host-Id")

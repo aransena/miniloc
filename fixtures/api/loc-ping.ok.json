@@ -1,7 +1,9 @@
 {
   "type": "loc_pong",
   "ok": true,
-  "host_id": "host-7K3P",
+  "access_mode": "paired",
+  "instance_id": "miniloc-4N9K",
+  "host_id": "7K3P",
   "fix_sequence": 42,
   "phone_wall_time_ms": 1778840900123,
   "cache_received_wall_time_ms": 1778840900201,

@@ -1,0 +1,23 @@
+{
+  "type": "status",
+  "ok": true,
+  "app": "miniloc",
+  "version": "0.2.0",
+  "instance_id": "miniloc-4N9K",
+  "access_mode": "open_lan",
+  "paired_host_id": null,
+  "auth_required": false,
+  "read_auth_required": false,
+  "port": 47654,
+  "discovery_service_type": "_miniloc._tcp.",
+  "discovery_service_name": "miniloc-4N9K",
+  "foreground_service_active": true,
+  "http_server_active": true,
+  "location_permission": "granted",
+  "notification_permission": "granted",
+  "last_fix_sequence": 42,
+  "last_fix_age_ms": 83,
+  "last_fix_accuracy_m": 4.2,
+  "recent_fix_count": 1,
+  "battery_pct": 87
+}

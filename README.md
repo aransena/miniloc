@@ -1,14 +1,14 @@
 # miniloc
 
-Version: `0.1.2`
+Version: `0.2.0`
 
 `miniloc` is a minimal native Android app that turns a phone into a local-network location sensor for one paired host device.
 
-The app uses camera QR pairing, a foreground fused-location service, and a local HTTP server on port `47654`. It does not use cloud services, login, maps, analytics, mDNS, or product-specific naming.
+The app uses default Open LAN sharing or optional camera QR pairing, a foreground fused-location service, mDNS discovery, and a local HTTP server on port `47654`. It does not use cloud services, login, maps, analytics, or product-specific naming.
 
 ## Scope
 
-`miniloc` is intentionally limited to local, user-confirmed phone location sharing for a paired host on the same LAN.
+`miniloc` is intentionally limited to local phone location sharing on the same LAN. Open LAN sharing is the default when the app starts; QR pairing remains available as an optional restricted mode.
 
 Out of scope for this project:
 
@@ -16,10 +16,11 @@ Out of scope for this project:
 - User accounts, login flows, device fleets, organization management, or multi-tenant access control.
 - Maps, route visualization, geofencing, trip playback, or GIS analysis.
 - Analytics, telemetry, crash-reporting services, advertising SDKs, or product-specific branding.
-- mDNS, NSD, Bluetooth discovery, cellular discovery, or cross-network traversal.
+- Bluetooth discovery, cellular discovery, or cross-network traversal.
 - Silent remote start of location sharing. The phone user must scan/paste a pairing payload and locally confirm sharing.
 - Background-only or hidden tracking without an Android foreground service notification.
 - Multiple active host pairings. The MVP supports one paired host at a time.
+- Remote start of Open LAN sharing. Open LAN starts only from launching the phone app and is visible in the foreground notification.
 - Cryptographic request signing beyond the MVP header token. Future HMAC support can be added without changing the local-first model.
 - Cloud or store distribution. Release APK signing is supported through local
   environment variables, but distribution remains project/operator owned.
@@ -102,42 +103,68 @@ Before field use, run the manual hardware protocol in
 Install host script dependencies:
 
 ```bash
-python3 -m pip install --user httpx 'qrcode[pil]'
+python3 -m pip install --user httpx zeroconf 'qrcode[pil]'
 ```
 
 Generate a short-lived pairing QR on the host:
 
 ```bash
-python3 tools/miniloc_pairing_qr.py --host-name "Field Recorder 7K3P"
+python3 tools/miniloc_pairing_qr.py --host-id 7K3P
 ```
 
-Open `miniloc` on the phone, tap `Scan pairing QR`, scan `miniloc_pairing_qr.png`, confirm the host name and host ID, then tap `Start sharing`.
+If `--host-id` is omitted, the tool generates a short random host ID. The QR
+message is intentionally tiny for small e-ink displays:
 
-The QR payload format is:
-
-```json
-{
-  "type": "miniloc_pair",
-  "version": 1,
-  "host_id": "host-7K3P",
-  "host_name": "Field Recorder 7K3P",
-  "pairing_token": "base64url-256-bit-random",
-  "issued_at": "2026-05-15T14:20:00Z",
-  "expires_in_s": 600,
-  "miniloc_port": 47654
-}
+```
+ML1:<host_id>:<pairing_token>
 ```
 
-The payload expiry is enforced after pairing as well as during QR scanning. When
-the active pairing expires, miniloc clears the pairing, clears cached fixes, and
-stops the foreground service.
+The token is a random 128-bit uppercase base32 value. The phone uses scan time
+as `issued_at`, applies a 600 second expiry, and uses port `47654`.
+
+Open `miniloc` on the phone, tap `Pair with QR instead`, scan `miniloc_pairing_qr.png`, confirm the host ID, then tap `Start sharing`.
+
+The pairing expiry is enforced after pairing. When the active pairing expires,
+miniloc clears the pairing, clears cached fixes, and stops the foreground
+service.
+
+## Open LAN Mode
+
+For trusted private networks with multiple local consumers, miniloc starts in
+Open LAN mode when the phone app launches. This starts the foreground location
+service and HTTP server after Android permissions are granted. Read-only
+endpoints do not require pairing headers:
+
+```text
+GET /id_ping
+GET /status
+GET /loc_ping
+GET /loc_history
+```
+
+Open LAN mode advertises `_miniloc._tcp.local` with TXT attributes for `app`,
+`version`, `instance_id`, `mode`, `auth_required`, and `read_auth_required`.
+Consumers should still confirm devices with `/id_ping` before reading location.
+
+Use Open LAN mode only on networks where every local client is trusted. Anyone
+on that LAN can read location while the mode is active. Destructive commands,
+including `/forget_pairing`, are not opened by Open LAN mode. QR pairing is
+available from the app as `Pair with QR instead`.
 
 ## Discovery And Polling
 
-Discover phones on a subnet:
+Discover phones with mDNS and optional subnet fallback:
 
 ```bash
 python3 tools/miniloc_discover.py --subnet 192.168.4.0/24 --no-poll
+```
+
+Discover and poll an Open LAN phone without credentials:
+
+```bash
+python3 tools/miniloc_discover.py \
+  --subnet 192.168.4.0/24 \
+  --once
 ```
 
 Discover and poll the paired phone at 1 Hz:
@@ -145,18 +172,18 @@ Discover and poll the paired phone at 1 Hz:
 ```bash
 python3 tools/miniloc_discover.py \
   --subnet 192.168.4.0/24 \
-  --host-id host-7K3P \
+  --host-id 7K3P \
   --token '<pairing_token>'
 ```
 
-`tools/miniloc_discover.py` and `tools/miniloc_poll.py --subnet ...` treat the phone IP as temporary. They confirm the phone with authenticated `/status`, remember `instance_id`, and rediscover on the same subnet if polling the cached IP fails.
+`tools/miniloc_discover.py` and `tools/miniloc_poll.py --subnet ...` treat the phone IP as temporary. They confirm the phone with `/status`, remember `instance_id`, and rediscover if polling the cached IP fails. Paired mode sends host headers; Open LAN mode does not.
 
 For high-detail polling at 5 Hz, match the app's faster cached-location request:
 
 ```bash
 python3 tools/miniloc_discover.py \
   --subnet 192.168.4.0/24 \
-  --host-id host-7K3P \
+  --host-id 7K3P \
   --token '<pairing_token>' \
   --interval 0.2
 ```
@@ -165,8 +192,14 @@ Poll a known phone IP:
 
 ```bash
 python3 tools/miniloc_poll.py 192.168.4.23 \
-  --host-id host-7K3P \
+  --host-id 7K3P \
   --token '<pairing_token>'
+```
+
+Poll a known Open LAN phone IP:
+
+```bash
+python3 tools/miniloc_poll.py 192.168.4.23
 ```
 
 Poll with automatic same-subnet rediscovery if the phone IP changes:
@@ -174,7 +207,7 @@ Poll with automatic same-subnet rediscovery if the phone IP changes:
 ```bash
 python3 tools/miniloc_poll.py 192.168.4.23 \
   --subnet 192.168.4.0/24 \
-  --host-id host-7K3P \
+  --host-id 7K3P \
   --token '<pairing_token>'
 ```
 
@@ -183,7 +216,7 @@ After the first successful run, the poller stores `last_seen_ip` and `instance_i
 ```bash
 python3 tools/miniloc_poll.py \
   --subnet 192.168.4.0/24 \
-  --host-id host-7K3P \
+  --host-id 7K3P \
   --token '<pairing_token>'
 ```
 
@@ -193,7 +226,7 @@ To inspect whether new fixes are actually arriving, use compact polling diagnost
 
 ```bash
 python3 tools/miniloc_poll.py 192.168.4.23 \
-  --host-id host-7K3P \
+  --host-id 7K3P \
   --token '<pairing_token>' \
   --interval 0.2 \
   --compact
@@ -212,12 +245,13 @@ The `0.1.1` baseline follows successful hardware testing of the MVP flow:
 - The local HTTP server is reachable from a same-LAN host on port `47654`.
 - `/id_ping` supports subnet discovery without returning location data.
 - Authenticated `/status`, `/loc_ping`, and `/loc_history` work with the paired host ID and token.
+- Open LAN mode supports unauthenticated read-only `/status`, `/loc_ping`, and `/loc_history` on trusted LANs.
 - Polling diagnostics show usable cached-fix updates for the tested hardware setup.
 - The phone UI can stop sharing and forget the pairing.
 
 When validating a new deployment, record the phone model, Android version, Wi-Fi/LAN setup, polling interval, screen-lock behavior, typical `age_ms`, and whether `fix_sequence` advances at the expected cadence.
 
-For `0.1.2` and later, use
+For `0.2.0` and later, use
 [`docs/manual-testing-protocol.md`](docs/manual-testing-protocol.md) and record
 the completed checklist before treating a build as field-ready.
 
@@ -234,7 +268,7 @@ GET /id_ping
 Authenticated endpoints require:
 
 ```http
-X-Miniloc-Host-Id: host-7K3P
+X-Miniloc-Host-Id: 7K3P
 X-Miniloc-Token: <pairing_token>
 ```
 
@@ -247,7 +281,7 @@ GET  /loc_history
 POST /forget_pairing
 ```
 
-`/id_ping` never returns location. Unauthenticated `/loc_ping` returns HTTP `401`.
+`/id_ping` never returns location. In paired mode, unauthenticated `/loc_ping` returns HTTP `401`. In Open LAN mode, read-only location endpoints are intentionally unauthenticated.
 
 `/loc_ping` returns the latest cached fix and a `recent_fixes` array containing the last 10 timestamped fixes. `/loc_history` returns the same rolling list without duplicating the latest-fix top-level fields.
 

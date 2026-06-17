@@ -1,7 +1,9 @@
 {
   "type": "loc_history",
   "ok": true,
-  "host_id": "host-7K3P",
+  "access_mode": "paired",
+  "instance_id": "miniloc-4N9K",
+  "host_id": "7K3P",
   "count": 1,
   "max_count": 10,
   "fixes": [

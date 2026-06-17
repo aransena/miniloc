@@ -1,6 +1,6 @@
 """Small Python client for pulling data from miniloc phones."""
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"
 
 from .client import (
     DEFAULT_PORT,
@@ -13,8 +13,10 @@ from .client import (
     MinilocResolver,
     MinilocUnauthorized,
     build_pairing_payload,
+    discover_miniloc_auto,
+    discover_miniloc_mdns,
     discover_miniloc,
-    pairing_payload_json,
+    pairing_payload_message,
 )
 
 __all__ = [
@@ -29,6 +31,8 @@ __all__ = [
     "MinilocResolver",
     "MinilocUnauthorized",
     "build_pairing_payload",
+    "discover_miniloc_auto",
+    "discover_miniloc_mdns",
     "discover_miniloc",
-    "pairing_payload_json",
+    "pairing_payload_message",
 ]

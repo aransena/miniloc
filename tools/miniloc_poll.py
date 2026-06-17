@@ -20,8 +20,8 @@ DEFAULT_CACHE_PATH = Path.home() / ".cache" / "miniloc" / "last_device.json"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ip", nargs="?", help="Phone IP address. If omitted, use --cache and/or --subnet.")
-    parser.add_argument("--host-id", required=True, help="Paired host ID.")
-    parser.add_argument("--token", required=True, help="Paired host token.")
+    parser.add_argument("--host-id", help="Paired host ID. Omit for Open LAN devices.")
+    parser.add_argument("--token", help="Paired host token. Omit for Open LAN devices.")
     parser.add_argument("--subnet", help="Same-subnet IPv4 range for rediscovery, e.g. 192.168.4.0/24.")
     parser.add_argument("--instance-id", help="Expected miniloc instance_id. Defaults to cached value when available.")
     parser.add_argument("--cache", default=str(DEFAULT_CACHE_PATH), help="JSON cache for last_seen_ip and instance_id.")
@@ -98,10 +98,12 @@ def save_cache(path: str, ip: str, status: dict, port: int, host_id: str) -> Non
 
 
 def auth_headers(args: argparse.Namespace) -> dict[str, str]:
-    return {
-        "X-Miniloc-Host-Id": args.host_id,
-        "X-Miniloc-Token": args.token,
-    }
+    if args.host_id and args.token:
+        return {
+            "X-Miniloc-Host-Id": args.host_id,
+            "X-Miniloc-Token": args.token,
+        }
+    return {}
 
 
 def status_for_ip(ip: str, args: argparse.Namespace, port: int | None = None) -> dict | None:
@@ -111,6 +113,8 @@ def status_for_ip(ip: str, args: argparse.Namespace, port: int | None = None) ->
     except httpx.RequestError:
         return None
     if response.status_code == 401:
+        if not args.host_id:
+            return None
         raise SystemExit(f"Authentication failed for {ip}; check --host-id and --token.")
     if response.status_code != 200:
         return None
@@ -120,7 +124,9 @@ def status_for_ip(ip: str, args: argparse.Namespace, port: int | None = None) ->
         return None
     if body.get("app") != "miniloc" or body.get("ok") is not True:
         return None
-    if body.get("paired_host_id") != args.host_id:
+    if args.host_id and body.get("paired_host_id") != args.host_id:
+        return None
+    if not args.host_id and body.get("auth_required") is not False:
         return None
     if args.instance_id and body.get("instance_id") != args.instance_id:
         return None
@@ -154,7 +160,7 @@ def discover_candidates(args: argparse.Namespace) -> list[tuple[str, dict]]:
     candidates.sort(
         key=lambda item: (
             item[1].get("instance_id") != args.instance_id if args.instance_id else False,
-            item[1].get("paired_host_id") != args.host_id,
+            item[1].get("paired_host_id") != args.host_id if args.host_id else item[1].get("auth_required") is not False,
             item[0],
         )
     )
@@ -165,7 +171,7 @@ def resolve_phone(args: argparse.Namespace, ip_hint: str | None) -> tuple[str, d
     if ip_hint:
         status = status_for_ip(ip_hint, args)
         if status is not None:
-            save_cache(args.cache, ip_hint, status, args.port, args.host_id)
+            save_cache(args.cache, ip_hint, status, args.port, args.host_id or "open_lan")
             return ip_hint, status
 
     if not args.subnet:
@@ -174,14 +180,16 @@ def resolve_phone(args: argparse.Namespace, ip_hint: str | None) -> tuple[str, d
     for ip, id_body in discover_candidates(args):
         if args.instance_id and id_body.get("instance_id") != args.instance_id:
             continue
-        if id_body.get("paired_host_id") not in (args.host_id, None):
+        if args.host_id and id_body.get("paired_host_id") not in (args.host_id, None):
+            continue
+        if not args.host_id and id_body.get("auth_required") is not False:
             continue
         status = status_for_ip(ip, args, port=int(id_body.get("port") or args.port))
         if status is not None:
-            save_cache(args.cache, ip, status, int(status.get("port") or args.port), args.host_id)
+            save_cache(args.cache, ip, status, int(status.get("port") or args.port), args.host_id or "open_lan")
             return ip, status
 
-    raise SystemExit(f"No authenticated miniloc device found on {args.subnet}.")
+    raise SystemExit(f"No readable miniloc device found on {args.subnet}.")
 
 
 def main() -> int:
@@ -190,9 +198,12 @@ def main() -> int:
         raise SystemExit("--concurrency must be greater than zero.")
     if args.timeout <= 0 or args.poll_timeout <= 0:
         raise SystemExit("--timeout and --poll-timeout must be greater than zero.")
+    if bool(args.host_id) != bool(args.token):
+        raise SystemExit("--host-id and --token must be provided together.")
 
     cache = load_cache(args.cache)
-    if cache.get("host_id") != args.host_id:
+    cache_key = args.host_id or "open_lan"
+    if cache.get("host_id") != cache_key:
         cache = {}
     if not args.instance_id:
         args.instance_id = cache.get("instance_id")

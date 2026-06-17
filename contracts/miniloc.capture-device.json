@@ -5,7 +5,7 @@
   "label": "miniloc Android phone location sensor",
   "producer": {
     "project": "miniloc",
-    "version": "0.1.2"
+    "version": "0.2.0"
   },
   "capabilities": {
     "streams": [
@@ -20,10 +20,10 @@
           "age_ms": "milliseconds"
         },
         "sample_rate_hz": "requested 5 Hz; actual cadence depends on Android, hardware, signal, and power policy",
-        "payload_format": "JSON object over authenticated HTTP"
+        "payload_format": "JSON object over paired-auth or Open LAN HTTP"
       }
     ],
-    "controls": ["pair", "start_sharing", "stop_sharing", "forget_pairing"],
+    "controls": ["pair", "start_sharing", "start_default_open_lan_sharing", "stop_sharing", "forget_pairing"],
     "permissions": ["camera", "precise_or_coarse_location", "post_notifications", "same_lan_network"],
     "fixtures": ["python_api_bundle/tests/test_client.py", "docs/manual-testing-protocol.md"]
   },

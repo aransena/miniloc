@@ -18,34 +18,38 @@
       "location_data": false,
       "response_schema": "../schemas/id-ping-response.v1.schema.json",
       "error_schema": "../schemas/error-response.v1.schema.json",
-      "examples": ["../fixtures/api/id-ping.paired.json"]
+      "examples": ["../fixtures/api/id-ping.paired.json", "../fixtures/api/id-ping.open-lan.json"]
     },
     {
       "operation": "service_status",
       "method": "GET",
       "path": "/status",
-      "auth": "paired_host_token",
+      "auth": "paired_host_token_or_open_lan",
       "response_schema": "../schemas/status-response.v1.schema.json",
       "error_schema": "../schemas/error-response.v1.schema.json",
-      "examples": ["../fixtures/api/status.active.json"]
+      "examples": ["../fixtures/api/status.active.json", "../fixtures/api/status.open-lan.json"]
     },
     {
       "operation": "latest_location",
       "method": "GET",
       "path": "/loc_ping",
-      "auth": "paired_host_token",
+      "auth": "paired_host_token_or_open_lan",
       "response_schema": "../schemas/loc-ping-response.v1.schema.json",
       "error_schema": "../schemas/error-response.v1.schema.json",
-      "examples": ["../fixtures/api/loc-ping.ok.json", "../fixtures/api/loc-ping.no-fix.json"]
+      "examples": [
+        "../fixtures/api/loc-ping.ok.json",
+        "../fixtures/api/loc-ping.open-lan.ok.json",
+        "../fixtures/api/loc-ping.no-fix.json"
+      ]
     },
     {
       "operation": "location_history",
       "method": "GET",
       "path": "/loc_history",
-      "auth": "paired_host_token",
+      "auth": "paired_host_token_or_open_lan",
       "response_schema": "../schemas/loc-history-response.v1.schema.json",
       "error_schema": "../schemas/error-response.v1.schema.json",
-      "examples": ["../fixtures/api/loc-history.ok.json"]
+      "examples": ["../fixtures/api/loc-history.ok.json", "../fixtures/api/loc-history.open-lan.json"]
     },
     {
       "operation": "forget_pairing",
@@ -77,11 +81,17 @@
     "path": "../openapi/miniloc.openapi.json"
   },
   "auth": {
-    "type": "bearer_token_headers",
+    "type": "bearer_token_headers_or_explicit_open_lan_mode",
     "headers": ["X-Miniloc-Host-Id", "X-Miniloc-Token"],
-    "token_source": "QR pairing payload accepted by local phone confirmation",
-    "expiry": "Pairing expires at issued_at + expires_in_s and is cleared locally when expired.",
+    "token_source": "ML1 QR pairing message accepted by local phone confirmation",
+    "open_lan": "Open LAN is the default phone-app launch mode. After Android permissions are granted, read-only endpoints do not require headers and advertise auth_required=false.",
+    "expiry": "Pairing expires 600 seconds after phone scan time and is cleared locally when expired.",
     "transport_security": "Plain HTTP; intended only for trusted same-LAN use."
+  },
+  "discovery": {
+    "mdns_service_type": "_miniloc._tcp.",
+    "txt": ["app", "version", "instance_id", "mode", "auth_required", "read_auth_required"],
+    "fallback": "same-subnet /id_ping sweep"
   },
   "limits": {
     "default_port": 47654,
@@ -92,13 +102,13 @@
     "payload_size": "small_json_objects"
   },
   "compatibility": {
-    "version": "0.1.2",
+    "version": "0.2.0",
     "stable_fields": [
       "endpoint paths and methods",
       "authentication header names",
       "type and ok response fields",
       "location coordinate and timing field names",
-      "pairing payload required fields"
+      "ML1 pairing message format"
     ],
     "diagnostic_fields": [
       "battery_pct",

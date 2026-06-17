@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.format.Formatter
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -21,8 +22,10 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
@@ -40,6 +43,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : ComponentActivity() {
@@ -47,13 +51,21 @@ class MainActivity : ComponentActivity() {
     private lateinit var root: LinearLayout
     private lateinit var cameraExecutor: ExecutorService
     private var pendingPairing: HostPairing? = null
+    private var pendingOpenLanStart = false
+    private var autoOpenLanAttempted = false
     private var previewView: PreviewView? = null
+    private var scannerStatusView: TextView? = null
+    private var scannerStatusText: String? = null
+    private var camera: Camera? = null
+    private var focusRequestSequence = 0
     private val analyzing = AtomicBoolean(false)
 
     private val refreshRunnable = object : Runnable {
         override fun run() {
-            if (PairingStore.get(this@MainActivity) != null && previewView == null) {
-                showActive()
+            if (previewView == null) {
+                showCurrentState()
+            }
+            if (PairingStore.hasSharingConfig(this@MainActivity) && previewView == null) {
                 mainHandler.postDelayed(this, ACTIVE_REFRESH_INTERVAL_MS)
             }
         }
@@ -78,16 +90,12 @@ class MainActivity : ComponentActivity() {
             },
         )
 
-        if (PairingStore.get(this) == null) {
-            showUnpaired()
-        } else {
-            showActive()
-        }
+        showCurrentState()
     }
 
     override fun onResume() {
         super.onResume()
-        if (PairingStore.get(this) != null && previewView == null) {
+        if (previewView == null) {
             mainHandler.post(refreshRunnable)
         }
     }
@@ -115,29 +123,81 @@ class MainActivity : ComponentActivity() {
                     showScanner()
                 } else {
                     toast("Camera permission is required to scan a pairing QR.")
-                    showUnpaired()
+                    showOpenLanPermissionRequired()
                 }
             }
             REQUEST_SHARING_PERMISSIONS -> {
                 val locationGranted = hasLocationPermission()
                 val notificationGranted = hasNotificationPermission()
                 if (locationGranted && notificationGranted) {
-                    pendingPairing?.let { savePairingAndStart(it) }
+                    when {
+                        pendingOpenLanStart -> startOpenLanSharing()
+                        pendingPairing != null -> pendingPairing?.let { savePairingAndStart(it) }
+                        else -> showUnpaired()
+                    }
                 } else {
                     toast("Location and notification permissions are required to share location.")
-                    pendingPairing?.let { showPairingConfirmation(it) } ?: showUnpaired()
+                    when {
+                        pendingPairing != null -> pendingPairing?.let { showPairingConfirmation(it) }
+                        pendingOpenLanStart -> showOpenLanPermissionRequired()
+                        else -> showOpenLanPermissionRequired()
+                    }
                 }
             }
         }
     }
 
-    private fun showUnpaired() {
+    private fun showCurrentState() {
+        when {
+            PairingStore.get(this) != null -> showActive()
+            PairingStore.isOpenLanEnabled(this) -> showOpenLanActive()
+            else -> startDefaultOpenLan()
+        }
+    }
+
+    private fun startDefaultOpenLan() {
+        if (autoOpenLanAttempted) {
+            showOpenLanPermissionRequired()
+            return
+        }
+        autoOpenLanAttempted = true
+        showOpenLanStarting()
+        ensureOpenLanPermissions()
+    }
+
+    private fun showOpenLanStarting() {
         stopCamera()
         pendingPairing = null
+        pendingOpenLanStart = true
         resetRoot()
         root.addView(title("miniloc"))
-        root.addView(body("Share this phone's location with a paired local host."))
-        root.addView(button("Scan pairing QR") { requestCameraAndScan() })
+        root.addView(detail("Open LAN sharing"))
+        root.addView(body("Starting local location sharing."))
+        root.addView(body("Discovery service: $MINILOC_NSD_SERVICE_TYPE"))
+        root.addView(button("Pair with QR instead") { switchToPairingScan() })
+    }
+
+    private fun showOpenLanPermissionRequired() {
+        stopCamera()
+        pendingPairing = null
+        pendingOpenLanStart = false
+        resetRoot()
+        root.addView(title("miniloc"))
+        root.addView(detail("Open LAN sharing"))
+        if (hasLocationPermission() && hasNotificationPermission()) {
+            root.addView(body("Open LAN sharing is stopped."))
+        } else {
+            root.addView(body("Location and notification permissions are required before sharing can start."))
+        }
+        root.addView(button("Start Open LAN sharing") { ensureOpenLanPermissions() })
+        root.addView(button("Pair with QR instead") { switchToPairingScan() })
+    }
+
+    private fun switchToPairingScan() {
+        stopService(Intent(this, LocationForegroundService::class.java))
+        PairingStore.disableOpenLan(this)
+        pendingOpenLanStart = false
+        requestCameraAndScan()
     }
 
     private fun requestCameraAndScan() {
@@ -150,6 +210,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showScanner() {
         pendingPairing = null
+        pendingOpenLanStart = false
         resetRoot()
         root.addView(title("Scan pairing QR"))
         root.addView(body("Point the camera at a miniloc pairing QR from the host device."))
@@ -162,16 +223,28 @@ class MainActivity : ComponentActivity() {
                 bottomMargin = dp(12)
             }
             scaleType = PreviewView.ScaleType.FILL_CENTER
+            setOnTouchListener { view, event ->
+                if (event.action == MotionEvent.ACTION_UP) {
+                    view.performClick()
+                    focusCameraAt(event.x, event.y)
+                    true
+                } else {
+                    true
+                }
+            }
         }
         previewView = preview
         root.addView(preview)
-        root.addView(button("Cancel") { showUnpaired() })
+        scannerStatusView = statusText("Camera starting")
+        root.addView(scannerStatusView)
+        root.addView(button("Cancel") { showOpenLanPermissionRequired() })
         startCamera(preview)
     }
 
     private fun showPairingConfirmation(pairing: HostPairing) {
         stopCamera()
         pendingPairing = pairing
+        pendingOpenLanStart = false
         resetRoot()
         root.addView(title("Confirm pairing"))
         root.addView(body("Share this phone's location with:"))
@@ -179,11 +252,35 @@ class MainActivity : ComponentActivity() {
         root.addView(body("Host ID: ${pairing.hostId}"))
         root.addView(body("Expires: ${expiryText(pairing)}"))
         root.addView(button("Start sharing") { ensureSharingPermissions(pairing) })
-        root.addView(button("Cancel") { showUnpaired() })
+        root.addView(button("Cancel") { showOpenLanPermissionRequired() })
+    }
+
+    private fun showOpenLanConfirmation() {
+        stopCamera()
+        pendingPairing = null
+        pendingOpenLanStart = true
+        resetRoot()
+        root.addView(title("Open LAN sharing"))
+        root.addView(body("Share this phone's location with any device on the current local network."))
+        root.addView(body("No pairing token is required while this mode is active."))
+        root.addView(body("Discovery service: $MINILOC_NSD_SERVICE_TYPE"))
+        root.addView(button("Start Open LAN sharing") { ensureOpenLanPermissions() })
+        root.addView(button("Pair with QR instead") { switchToPairingScan() })
     }
 
     private fun ensureSharingPermissions(pairing: HostPairing) {
         pendingPairing = pairing
+        pendingOpenLanStart = false
+        requestSharingPermissions { savePairingAndStart(pairing) }
+    }
+
+    private fun ensureOpenLanPermissions() {
+        pendingPairing = null
+        pendingOpenLanStart = true
+        requestSharingPermissions { startOpenLanSharing() }
+    }
+
+    private fun requestSharingPermissions(onGranted: () -> Unit) {
         val permissions = mutableListOf<String>()
         if (!hasLocationPermission()) {
             permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -193,7 +290,7 @@ class MainActivity : ComponentActivity() {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
         if (permissions.isEmpty()) {
-            savePairingAndStart(pairing)
+            onGranted()
         } else {
             ActivityCompat.requestPermissions(this, permissions.toTypedArray(), REQUEST_SHARING_PERMISSIONS)
         }
@@ -201,8 +298,17 @@ class MainActivity : ComponentActivity() {
 
     private fun savePairingAndStart(pairing: HostPairing) {
         PairingStore.save(this, pairing)
+        pendingOpenLanStart = false
         startSharingService()
         showActive()
+    }
+
+    private fun startOpenLanSharing() {
+        PairingStore.enableOpenLan(this)
+        pendingOpenLanStart = false
+        LocationCache.clear()
+        startSharingService()
+        showOpenLanActive()
     }
 
     private fun showActive() {
@@ -238,8 +344,50 @@ class MainActivity : ComponentActivity() {
             stopService(Intent(this, LocationForegroundService::class.java))
             PairingStore.clear(this)
             LocationCache.clear()
-            showUnpaired()
+            showOpenLanPermissionRequired()
         })
+        root.addView(locationHistoryList())
+    }
+
+    private fun showUnpaired() {
+        showOpenLanPermissionRequired()
+    }
+
+    private fun showOpenLanActive() {
+        stopCamera()
+        if (!PairingStore.isOpenLanEnabled(this)) return showUnpaired()
+        resetRoot()
+        val instanceId = PairingStore.instanceId(this)
+        root.addView(title("miniloc"))
+        root.addView(detail("Open LAN sharing"))
+        root.addView(body("Instance ID: $instanceId"))
+        root.addView(body("Service: ${if (LocationForegroundService.isRunning()) "active" else "stopped"}"))
+        val ip = phoneIpAddress()
+        root.addView(body("Phone URL: ${ip?.let { "http://$it:$MINILOC_PORT" } ?: "unknown"}"))
+        root.addView(body("Discovery: ${PairingStore.serviceName(this)}.$MINILOC_NSD_SERVICE_TYPE"))
+
+        val fix = LocationCache.get()
+        if (fix == null) {
+            root.addView(body("Latest fix: waiting"))
+        } else {
+            root.addView(body("Latest fix age: ${fix.ageMs()} ms"))
+            root.addView(body("Latest accuracy: ${fix.horizontalAccuracyM?.let { "$it m" } ?: "unknown"}"))
+        }
+
+        if (LocationForegroundService.isRunning()) {
+            root.addView(button("Stop sharing") {
+                stopService(Intent(this, LocationForegroundService::class.java))
+                PairingStore.disableOpenLan(this)
+                LocationCache.clear()
+                showOpenLanPermissionRequired()
+            })
+            root.addView(button("Pair with QR instead") { switchToPairingScan() })
+        } else {
+            root.addView(button("Start sharing") {
+                ensureOpenLanPermissions()
+            })
+            root.addView(button("Pair with QR instead") { switchToPairingScan() })
+        }
         root.addView(locationHistoryList())
     }
 
@@ -251,30 +399,92 @@ class MainActivity : ComponentActivity() {
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun startCamera(preview: PreviewView) {
+        setScannerStatus("Camera starting")
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener(
             {
-                val cameraProvider = providerFuture.get()
-                val previewUseCase = Preview.Builder().build().also {
-                    it.setSurfaceProvider(preview.surfaceProvider)
-                }
-                val analyzer = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
-                    .also {
-                        it.setAnalyzer(cameraExecutor) { imageProxy -> analyzeQr(imageProxy) }
+                try {
+                    val cameraProvider = providerFuture.get()
+                    val previewUseCase = Preview.Builder().build().also {
+                        it.setSurfaceProvider(preview.surfaceProvider)
                     }
+                    val analyzer = ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
+                        .also {
+                            it.setAnalyzer(cameraExecutor) { imageProxy -> analyzeQr(imageProxy) }
+                        }
 
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    this,
-                    CameraSelector.DEFAULT_BACK_CAMERA,
-                    previewUseCase,
-                    analyzer,
-                )
+                    cameraProvider.unbindAll()
+                    camera = cameraProvider.bindToLifecycle(
+                        this,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        previewUseCase,
+                        analyzer,
+                    )
+                    setScannerStatus("Looking for QR. Tap preview to focus.")
+                } catch (error: Exception) {
+                    setScannerStatus("Camera failed: ${error.message ?: "unknown error"}")
+                }
             },
             ContextCompat.getMainExecutor(this),
         )
+    }
+
+    private fun focusCameraAt(x: Float, y: Float) {
+        val preview = previewView ?: return
+        val activeCamera = camera ?: run {
+            setScannerStatus("Camera not ready")
+            return
+        }
+        focusRequestSequence += 1
+        val requestId = focusRequestSequence
+        val point = preview.meteringPointFactory.createPoint(x, y)
+        val action = FocusMeteringAction.Builder(
+            point,
+            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE,
+        )
+            .setAutoCancelDuration(3, TimeUnit.SECONDS)
+            .build()
+        setScannerStatus("Focusing")
+        val focusFuture = activeCamera.cameraControl.startFocusAndMetering(action)
+        focusFuture.addListener(
+            {
+                if (requestId != focusRequestSequence) return@addListener
+                val result = runCatching { focusFuture.get() }.getOrElse { error ->
+                    if (isFocusCancellation(error)) {
+                        setScannerStatus("Looking for QR. Tap preview to focus.")
+                    } else {
+                        setScannerStatus("Focus failed. Try tapping the QR again.")
+                    }
+                    return@addListener
+                }
+                if (requestId != focusRequestSequence) return@addListener
+                if (result.isFocusSuccessful) {
+                    setScannerStatus("Focus locked. Looking for QR.")
+                } else {
+                    setScannerStatus("Focus adjusted. Looking for QR.")
+                }
+            },
+            ContextCompat.getMainExecutor(this),
+        )
+    }
+
+    private fun isFocusCancellation(error: Throwable): Boolean {
+        var current: Throwable? = error
+        while (current != null) {
+            val className = current::class.java.name
+            val message = current.message.orEmpty()
+            if (
+                className.contains("OperationCanceledException") ||
+                message.contains("OperationCanceledException") ||
+                message.contains("cancelFocusAndMetering")
+            ) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
     }
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
@@ -300,22 +510,33 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleBarcodeTask(task: Task<List<Barcode>>) {
-        if (!task.isSuccessful) return
+        if (!task.isSuccessful) {
+            setScannerStatus("Scanner error: ${task.exception?.message ?: "try again"}")
+            return
+        }
         val value = task.result?.firstOrNull { it.rawValue?.isNotBlank() == true }?.rawValue ?: return
+        setScannerStatus("QR detected")
         val pairing = try {
             PairingStore.parsePayload(value)
         } catch (error: IllegalArgumentException) {
-            mainHandler.post { toast(error.message ?: "Invalid pairing QR.") }
+            val message = error.message ?: "Invalid pairing QR."
+            setScannerStatus(message)
+            mainHandler.post { toast(message) }
             return
         }
         mainHandler.post {
+            setScannerStatus("Pairing QR found")
             pendingPairing = pairing
             showPairingConfirmation(pairing)
         }
     }
 
     private fun stopCamera() {
+        focusRequestSequence += 1
         previewView = null
+        scannerStatusView = null
+        scannerStatusText = null
+        camera = null
         runCatching { ProcessCameraProvider.getInstance(this).get().unbindAll() }
     }
 
@@ -332,6 +553,14 @@ class MainActivity : ComponentActivity() {
 
     private fun resetRoot() {
         root.removeAllViews()
+    }
+
+    private fun setScannerStatus(text: String) {
+        if (scannerStatusText == text) return
+        scannerStatusText = text
+        mainHandler.post {
+            scannerStatusView?.text = text
+        }
     }
 
     private fun title(text: String): TextView {
@@ -358,6 +587,15 @@ class MainActivity : ComponentActivity() {
             textSize = 16f
             setTextColor(0xFF263238.toInt())
             setPadding(0, dp(4), 0, dp(4))
+        }
+    }
+
+    private fun statusText(text: String): TextView {
+        return TextView(this).apply {
+            this.text = text
+            textSize = 14f
+            setTextColor(0xFF16383D.toInt())
+            setPadding(0, 0, 0, dp(4))
         }
     }
 

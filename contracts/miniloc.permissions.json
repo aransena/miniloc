@@ -17,7 +17,11 @@
     },
     {
       "name": "same_lan_http",
-      "purpose": "Expose location/status endpoints to the paired host on the local network."
+      "purpose": "Expose location/status endpoints to paired hosts or Open LAN consumers on the local network."
+    },
+    {
+      "name": "same_lan_mdns",
+      "purpose": "Advertise active miniloc sharing with Android NSD/mDNS on the local network."
     },
     {
       "name": "adb_deploy",
@@ -37,6 +41,7 @@
       "POST_NOTIFICATIONS",
       "INTERNET",
       "ACCESS_NETWORK_STATE",
+      "CHANGE_WIFI_MULTICAST_STATE",
       "CAMERA"
     ],
     "network": ["0.0.0.0:47654 on same LAN"],
@@ -50,7 +55,7 @@
     "delete": ["clear pairing and cached fixes through phone UI or authenticated /forget_pairing"]
   },
   "approval": {
-    "phone_user": ["scan pairing QR", "confirm Start sharing", "grant Android permissions", "stop or forget sharing"],
+    "phone_user": ["launch app to start Open LAN sharing", "scan pairing QR", "confirm Start sharing", "grant Android permissions", "stop or forget sharing"],
     "developer": ["adb deploy", "release signing env vars"],
     "network_admin": ["allow same-LAN host-to-phone connectivity when Wi-Fi client isolation is present"]
   }

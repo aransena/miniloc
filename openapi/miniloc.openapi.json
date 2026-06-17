@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "miniloc Local HTTP API",
-    "version": "0.1.2",
-    "description": "Same-LAN HTTP API exposed by an Android phone running miniloc after local QR pairing and user confirmation."
+    "version": "0.2.0",
+    "description": "Same-LAN HTTP API exposed by an Android phone running miniloc after local QR pairing or explicit Open LAN sharing."
   },
   "servers": [
     {
@@ -43,7 +43,7 @@
                 }
               }
             },
-            "x-fixtures": ["../fixtures/api/id-ping.paired.json"]
+            "x-fixtures": ["../fixtures/api/id-ping.paired.json", "../fixtures/api/id-ping.open-lan.json"]
           }
         }
       }
@@ -52,12 +52,14 @@
       "get": {
         "operationId": "getStatus",
         "tags": ["Location"],
-        "summary": "Return authenticated service, permission, and latest-fix status.",
+        "summary": "Return service, permission, and latest-fix status.",
+        "description": "Requires paired host credentials unless the phone user started Open LAN mode.",
         "security": [
           {
             "MinilocHostId": [],
             "MinilocToken": []
-          }
+          },
+          {}
         ],
         "responses": {
           "200": {
@@ -69,7 +71,7 @@
                 }
               }
             },
-            "x-fixtures": ["../fixtures/api/status.active.json"]
+            "x-fixtures": ["../fixtures/api/status.active.json", "../fixtures/api/status.open-lan.json"]
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -82,11 +84,13 @@
         "operationId": "getLatestLocation",
         "tags": ["Location"],
         "summary": "Return the latest cached location fix or a normal no-fix/stale state.",
+        "description": "Requires paired host credentials unless the phone user started Open LAN mode.",
         "security": [
           {
             "MinilocHostId": [],
             "MinilocToken": []
-          }
+          },
+          {}
         ],
         "responses": {
           "200": {
@@ -100,6 +104,7 @@
             },
             "x-fixtures": [
               "../fixtures/api/loc-ping.ok.json",
+              "../fixtures/api/loc-ping.open-lan.ok.json",
               "../fixtures/api/loc-ping.no-fix.json"
             ]
           },
@@ -114,11 +119,13 @@
         "operationId": "getLocationHistory",
         "tags": ["Location"],
         "summary": "Return the rolling in-memory list of recent fixes.",
+        "description": "Requires paired host credentials unless the phone user started Open LAN mode.",
         "security": [
           {
             "MinilocHostId": [],
             "MinilocToken": []
-          }
+          },
+          {}
         ],
         "responses": {
           "200": {
@@ -130,7 +137,7 @@
                 }
               }
             },
-            "x-fixtures": ["../fixtures/api/loc-history.ok.json"]
+            "x-fixtures": ["../fixtures/api/loc-history.ok.json", "../fixtures/api/loc-history.open-lan.json"]
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -219,10 +226,15 @@
     }
   },
   "x-miniloc-pairing": {
-    "description": "The QR pairing payload is not an HTTP endpoint, but it is part of the interop contract because hosts must generate it.",
+    "description": "The QR pairing message is not an HTTP endpoint, but it is part of the interop contract because hosts must generate it. Format: ML1:<host_id>:<pairing_token>.",
     "schema": {
       "$ref": "../schemas/pairing-payload.v1.schema.json"
     },
     "fixtures": ["../fixtures/api/pairing-payload.valid.json"]
+  },
+  "x-miniloc-discovery": {
+    "mdns_service_type": "_miniloc._tcp.local.",
+    "txt": ["app", "version", "instance_id", "mode", "auth_required", "read_auth_required"],
+    "fallback": "GET /id_ping across the same subnet"
   }
 }

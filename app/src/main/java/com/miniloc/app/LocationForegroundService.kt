@@ -28,6 +28,7 @@ class LocationForegroundService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationCallback: LocationCallback? = null
     private var httpServer: MinilocHttpServer? = null
+    private var nsdAdvertiser: MinilocNsdAdvertiser? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val expiryStopRunnable = Runnable {
         if (PairingStore.get(this) == null) {
@@ -48,17 +49,25 @@ class LocationForegroundService : Service() {
         }
 
         val pairing = PairingStore.get(this)
-        if (pairing == null) {
+        val openLan = PairingStore.isOpenLanEnabled(this)
+        if (pairing == null && !openLan) {
             stopSelf()
             return START_NOT_STICKY
         }
 
         return try {
-            startForegroundNotification(pairing)
+            val mode = if (openLan) SharingMode.OPEN_LAN else SharingMode.PAIRED
+            val port = pairing?.minilocPort ?: MINILOC_PORT
+            startForegroundNotification(pairing, mode)
             running.set(true)
-            startHttpServer(pairing.minilocPort)
+            startHttpServer(port)
+            startNsdAdvertisement(mode, port)
             startLocationUpdates()
-            scheduleExpiryStop(pairing)
+            if (pairing != null) {
+                scheduleExpiryStop(pairing)
+            } else {
+                mainHandler.removeCallbacks(expiryStopRunnable)
+            }
             START_STICKY
         } catch (error: Exception) {
             running.set(false)
@@ -71,6 +80,8 @@ class LocationForegroundService : Service() {
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
         locationCallback = null
         mainHandler.removeCallbacks(expiryStopRunnable)
+        nsdAdvertiser?.stop()
+        nsdAdvertiser = null
         httpServer?.stop()
         httpServer = null
         running.set(false)
@@ -79,9 +90,9 @@ class LocationForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun startForegroundNotification(pairing: HostPairing) {
+    private fun startForegroundNotification(pairing: HostPairing?, mode: SharingMode) {
         createNotificationChannel()
-        val notification = buildNotification(pairing)
+        val notification = buildNotification(pairing, mode)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
         } else {
@@ -89,7 +100,7 @@ class LocationForegroundService : Service() {
         }
     }
 
-    private fun buildNotification(pairing: HostPairing): Notification {
+    private fun buildNotification(pairing: HostPairing?, mode: SharingMode): Notification {
         val openIntent = PendingIntent.getActivity(
             this,
             0,
@@ -102,10 +113,14 @@ class LocationForegroundService : Service() {
             Intent(this, LocationForegroundService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val text = when (mode) {
+            SharingMode.OPEN_LAN -> "Open LAN location sharing is active"
+            SharingMode.PAIRED -> "Sharing location with ${pairing?.hostName ?: "paired host"}"
+        }
 
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("miniloc active")
-            .setContentText("Sharing location with ${pairing.hostName}")
+            .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentIntent(openIntent)
             .setOngoing(true)
@@ -137,6 +152,13 @@ class LocationForegroundService : Service() {
         httpServer = MinilocHttpServer(applicationContext, port).also {
             it.start(NanoHTTPD_SOCKET_READ_TIMEOUT_MS, false)
         }
+    }
+
+    private fun startNsdAdvertisement(mode: SharingMode, port: Int) {
+        val advertiser = nsdAdvertiser ?: MinilocNsdAdvertiser(applicationContext).also {
+            nsdAdvertiser = it
+        }
+        advertiser.start(mode, port)
     }
 
     @SuppressLint("MissingPermission")

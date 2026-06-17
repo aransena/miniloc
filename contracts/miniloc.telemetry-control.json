@@ -5,7 +5,7 @@
   "target": {
     "type": "single_android_phone",
     "service": "LocationForegroundService",
-    "host_model": "one paired host at a time"
+    "host_model": "default Open LAN read-only sharing or optional one paired host at a time"
   },
   "telemetry": {
     "streams": ["miniloc.location-stream.json"],
@@ -26,12 +26,17 @@
       "name": "pair",
       "initiator": "phone_user",
       "acknowledgement": "confirmation screen and active UI state",
-      "timeout": "pairing payload expires at issued_at + expires_in_s"
+      "timeout": "pairing expires 600 seconds after phone scan time"
     },
     {
       "name": "start_sharing",
       "initiator": "phone_user",
       "acknowledgement": "foreground notification and /status foreground_service_active=true"
+    },
+    {
+      "name": "start_default_open_lan_sharing",
+      "initiator": "phone_user",
+      "acknowledgement": "app launch, foreground notification, mDNS advertisement, and /status access_mode=open_lan"
     },
     {
       "name": "stop_sharing",
@@ -51,15 +56,16 @@
   },
   "offline": {
     "store_and_forward": false,
-    "retry": "host-side polling and rediscovery only",
+    "retry": "consumer-side polling and rediscovery only",
     "loss": "location fixes are not persisted; only the latest and last 10 in-memory fixes are exposed",
-    "recovery": "host rediscovers phone on the same subnet and resumes polling"
+    "recovery": "consumer rediscovers phone with mDNS or same-subnet scanning and resumes polling"
   },
   "safety": {
     "silent_remote_start": false,
     "foreground_notification_required": true,
     "pairing_expiry_enforced": true,
     "cloud_or_cross_network_access": false,
-    "user_controls": ["Stop sharing", "Forget pairing"]
+    "open_lan_starts_on_app_launch": true,
+    "user_controls": ["Stop sharing", "Forget pairing", "Disable Open LAN"]
   }
 }

@@ -23,7 +23,7 @@ results in the release notes or issue tracker for the build under test.
 - Phone and host are on the same LAN.
 - Android developer options and USB debugging are enabled if using
   `tools/deploy_android.sh`.
-- Host has Python 3, `httpx`, and `qrcode[pil]` installed for helper tools.
+- Host has Python 3, `httpx`, `zeroconf`, and `qrcode[pil]` installed for helper tools.
 - The phone has no old miniloc pairing, or the tester is prepared to tap
   `Forget pairing`.
 
@@ -32,23 +32,52 @@ results in the release notes or issue tracker for the build under test.
 1. Run `./gradlew assembleDebug`.
 2. Install with `tools/deploy_android.sh` or `adb install -r`.
 3. Launch miniloc.
-4. Confirm the app opens to the unpaired screen.
+4. Grant precise location and notification permissions if prompted.
+5. Confirm the app opens to the Open LAN sharing screen.
 
 Pass criteria:
 
 - Debug APK builds successfully.
 - App installs and launches.
+- Open LAN sharing starts automatically after required Android permissions are granted.
 - No crash or Android permission error is shown on first open.
+
+## Default Open LAN Flow
+
+1. Launch miniloc.
+2. Grant precise location and notification permissions if prompted.
+3. Discover with mDNS and subnet fallback:
+
+   ```bash
+   python3 tools/miniloc_discover.py --subnet <subnet> --no-poll
+   ```
+
+4. Poll without credentials:
+
+   ```bash
+   python3 tools/miniloc_poll.py <phone-ip> --once
+   ```
+
+Pass criteria:
+
+- Open LAN sharing starts automatically after app launch and required Android permission grants.
+- Android shows the persistent `miniloc active` foreground-service notification.
+- `/id_ping` reports `access_mode=open_lan` and `auth_required=false`.
+- `/status`, `/loc_ping`, and `/loc_history` return HTTP `200` without pairing headers.
+- `/forget_pairing` is not available without paired credentials.
+- Tapping `Stop sharing` disables Open LAN read access for the current app session.
 
 ## Pairing And Permission Flow
 
 1. Generate a QR payload:
 
    ```bash
-   python3 tools/miniloc_pairing_qr.py --host-name "Manual Test Host"
+   python3 tools/miniloc_pairing_qr.py --host-id TEST
    ```
 
-2. In miniloc, tap `Scan pairing QR`.
+   The QR text printed to stdout must use `ML1:<host_id>:<pairing_token>`.
+
+2. In miniloc, tap `Pair with QR instead`.
 3. Grant camera permission if prompted.
 4. Scan `miniloc_pairing_qr.png`.
 5. Confirm the displayed host name and host ID match the generated payload.
@@ -57,7 +86,7 @@ Pass criteria:
 
 Pass criteria:
 
-- Expired or malformed QR payloads are rejected with an error.
+- Malformed QR messages are rejected with an error.
 - Valid QR payload shows a confirmation screen before sharing starts.
 - Sharing only starts after local confirmation.
 - Android shows the persistent `miniloc active` foreground-service notification.
@@ -71,7 +100,8 @@ Pass criteria:
    ```
 
 2. Confirm `/id_ping` returns `app=miniloc`, `type=id_pong`, `instance_id`,
-   `paired_host_id`, and `port`, but no latitude, longitude, or location fields.
+   `access_mode`, `paired_host_id`, `auth_required`, and `port`, but no
+   latitude, longitude, or location fields.
 3. Poll with missing or wrong credentials:
 
    ```bash
@@ -90,7 +120,7 @@ Pass criteria:
 Pass criteria:
 
 - `/id_ping` is reachable and location-free.
-- Unauthenticated `/loc_ping` returns HTTP `401`.
+- In paired mode, unauthenticated `/loc_ping` returns HTTP `401`.
 - Authenticated `/status` and `/loc_ping` return HTTP `200`.
 - `/loc_ping` returns either `ok=true` with a recent fix or `ok=false` with
   `fix_status=no_fix` while the phone is still acquiring location.
@@ -148,13 +178,12 @@ Pass criteria:
 
    ```bash
    python3 tools/miniloc_pairing_qr.py \
-     --host-name "Expiry Test Host" \
-     --expires-in-s 30
+     --host-id EXPY
    ```
 
-2. Pair and start sharing before the 30 seconds expires.
+2. Pair and start sharing.
 3. Confirm authenticated `/status` works immediately after sharing starts.
-4. Wait until at least 35 seconds after `issued_at`.
+4. Wait at least 605 seconds after scanning the QR.
 5. Call authenticated `/status` again.
 6. Open the app and inspect the UI.
 

@@ -4,7 +4,7 @@
 
 Create a minimal native Android app called **miniloc**.
 
-`miniloc` turns an Android phone into a local-network location sensor. A separate **host device** on the same LAN discovers the phone, authenticates using a QR-based soft pairing token, and polls the phone for the latest cached location fix.
+`miniloc` turns an Android phone into a local-network location sensor. By default, launching the app starts Open LAN read-only sharing for trusted local consumers. QR pairing remains available as an optional restricted mode for a specific host device.
 
 The app must not be tied to any specific product, platform, research system, or brand. It should be reusable anywhere a host computer needs accurate phone-derived location data over a local network.
 
@@ -18,16 +18,16 @@ Android phone running miniloc
   - fused location provider
   - local HTTP server on fixed port
   - cached latest location fix
-  - QR-scanned host pairing token
+  - default Open LAN read-only API
+  - optional QR-scanned host pairing token
 
-Host device
-  - displays QR pairing payload
-  - sweeps local subnet
+Consumer device
+  - browses mDNS or sweeps local subnet
   - calls /id_ping to identify miniloc phones
-  - calls authenticated /loc_ping to retrieve location
+  - calls /loc_ping to retrieve location
 ```
 
-The phone should not continuously push location by default. Instead, it maintains a hot cached location fix, and the host polls it.
+The phone should not continuously push location by default. Instead, it maintains a hot cached location fix, and local consumers poll it.
 
 ---
 
@@ -223,28 +223,19 @@ miniloc device:
   The Android phone running the miniloc app and foreground location service.
 ```
 
-The host displays a QR code containing a short-lived pairing payload.
+The host displays a QR code containing an ultra-compact pairing message.
 
-Example QR payload:
+Example QR message:
 
-```json
-{
-  "type": "miniloc_pair",
-  "version": 1,
-  "host_id": "host-7K3P",
-  "host_name": "Field Recorder 7K3P",
-  "pairing_token": "base64url-256-bit-random",
-  "issued_at": "2026-05-15T14:20:00Z",
-  "expires_in_s": 600,
-  "miniloc_port": 47654
-}
+```text
+ML1:7K3P:IFBEGRCFIZDUQSKKJNGE2TSPKB
 ```
 
 The user opens `miniloc`, scans the QR code, and confirms:
 
 ```text
 Share this phone's location with:
-Field Recorder 7K3P
+7K3P
 
 [Start sharing]
 ```
@@ -253,10 +244,10 @@ After confirmation, `miniloc` stores:
 
 ```text
 host_id
-host_name
 pairing_token
-pairing expiry / issued time
-miniloc_port
+scan-time issued_at
+600 second pairing expiry
+default miniloc_port 47654
 ```
 
 Then it starts:
@@ -312,13 +303,19 @@ For MVP, `/start` and `/stop` should remain local-phone UI actions only. The hos
 
 It must reveal no location and no sensitive user data.
 
-`/status`, `/loc_ping`, and `/forget_pairing` require authentication.
+In paired mode, `/status`, `/loc_ping`, `/loc_history`, and `/forget_pairing`
+require authentication.
+
+In default Open LAN mode, `/status`, `/loc_ping`, and `/loc_history` are
+read-only and unauthenticated after app launch and required Android permission
+grants. `/forget_pairing` remains authenticated and is not opened by Open LAN
+mode.
 
 Authentication for MVP:
 
 ```http
-X-Miniloc-Host-Id: host-7K3P
-X-Miniloc-Token: base64url-256-bit-random
+X-Miniloc-Host-Id: 7K3P
+X-Miniloc-Token: IFBEGRCFIZDUQSKKJNGE2TSPKB
 ```
 
 A request is authorized only if both values match the active pairing.
@@ -326,7 +323,7 @@ A request is authorized only if both values match the active pairing.
 Future stronger authentication may use HMAC:
 
 ```http
-X-Miniloc-Host-Id: host-7K3P
+X-Miniloc-Host-Id: 7K3P
 X-Miniloc-Timestamp: 1778850000123
 X-Miniloc-Signature: hmac_sha256(pairing_secret, method + path + timestamp + body_hash)
 ```
@@ -349,9 +346,9 @@ Example response:
 {
   "type": "id_pong",
   "app": "miniloc",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "instance_id": "miniloc-4N9K",
-  "paired_host_id": "host-7K3P",
+  "paired_host_id": "7K3P",
   "auth_required": true,
   "port": 47654
 }
@@ -363,7 +360,7 @@ If unpaired:
 {
   "type": "id_pong",
   "app": "miniloc",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "instance_id": "miniloc-4N9K",
   "paired_host_id": null,
   "auth_required": true,
@@ -384,8 +381,8 @@ Example response:
   "type": "status",
   "ok": true,
   "app": "miniloc",
-  "version": "0.1.2",
-  "paired_host_id": "host-7K3P",
+  "version": "0.2.0",
+  "paired_host_id": "7K3P",
   "foreground_service_active": true,
   "http_server_active": true,
   "location_permission": "granted",
@@ -410,7 +407,7 @@ Valid response:
 {
   "type": "loc_pong",
   "ok": true,
-  "host_id": "host-7K3P",
+  "host_id": "7K3P",
   "phone_wall_time_ms": 1778850000123,
   "elapsed_realtime_ns": 482991234567,
   "age_ms": 220,
@@ -488,8 +485,8 @@ Example host polling request:
 
 ```http
 GET http://<phone-ip>:47654/loc_ping
-X-Miniloc-Host-Id: host-7K3P
-X-Miniloc-Token: base64url-256-bit-random
+X-Miniloc-Host-Id: 7K3P
+X-Miniloc-Token: IFBEGRCFIZDUQSKKJNGE2TSPKB
 ```
 
 Recommended polling rates:
@@ -509,21 +506,21 @@ Keep the UI minimal.
 Required screens/states:
 
 ```text
-Unpaired:
+Default Open LAN:
   - app name: miniloc
-  - explanation: "Share this phone's location with a paired local host."
-  - button: Scan pairing QR
-  - optional debug text field: Paste pairing payload
+  - state: Open LAN sharing active or waiting for Android permissions
+  - phone URL and mDNS service name
+  - button: Stop sharing
+  - button: Pair with QR instead
 
 Pairing confirmation:
-  - host_name
   - host_id
   - expiry status
   - button: Start sharing
   - button: Cancel
 
 Active:
-  - paired host name
+  - paired host ID
   - service status
   - latest accuracy
   - latest fix age
@@ -537,7 +534,7 @@ Foreground notification:
 
 ```text
 Title: miniloc active
-Text: Sharing location with <host_name>
+Text: Sharing location with <host_id>
 Ongoing: true
 ```
 
@@ -593,7 +590,9 @@ The app must be transparent and locally controlled.
 
 Rules:
 
-- Never return location from unauthenticated endpoints.
+- Never return location from unauthenticated endpoints in paired mode.
+- In default Open LAN mode, read-only location endpoints are unauthenticated only
+  after app launch and required Android permission grants.
 - Never return location from `/id_ping`.
 - Do not silently start location sharing from a network request.
 - Show a persistent notification while location collection is active.
@@ -625,8 +624,8 @@ Rules:
 ### Pairing
 
 ```text
-- App can parse a miniloc_pair JSON payload.
-- App displays host_name and host_id before starting.
+- App can parse an ML1:<host_id>:<pairing_token> QR message.
+- App displays host_id before starting.
 - App stores active pairing after user confirmation.
 - App can forget pairing.
 ```
@@ -667,7 +666,7 @@ Create a small Python script for local testing.
 Expected behaviour:
 
 ```text
-python miniloc_discover.py --subnet 192.168.4.0/24 --host-id host-7K3P --token <token>
+python miniloc_discover.py --subnet 192.168.4.0/24 --host-id 7K3P --token <token>
 ```
 
 The script should:
@@ -723,7 +722,7 @@ Important constraints:
 - Host discovery is by subnet sweep calling /id_ping.
 - /id_ping is public but never returns location.
 - /loc_ping and /status require X-Miniloc-Host-Id and X-Miniloc-Token headers.
-- Pairing is done by scanning or pasting a QR JSON payload containing host_id, host_name, pairing_token, expiry, and miniloc_port.
+- Pairing is done by scanning or pasting an ML1:<host_id>:<pairing_token> QR message.
 - User must locally confirm before sharing starts.
 - The phone UI must always allow Stop Sharing and Forget Pairing.
 

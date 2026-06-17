@@ -1,6 +1,9 @@
 {
   "type": "loc_pong",
   "ok": false,
+  "access_mode": "open_lan",
+  "instance_id": "miniloc-4N9K",
+  "host_id": null,
   "fix_status": "no_fix",
   "recent_fixes": []
 }

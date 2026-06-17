@@ -89,12 +89,21 @@ object LocationCache {
         }
     }
 
-    fun toLocationJson(hostId: String, context: Context, staleAfterMs: Long = 10_000L): JSONObject {
+    fun toLocationJson(
+        mode: SharingMode,
+        hostId: String?,
+        instanceId: String,
+        context: Context,
+        staleAfterMs: Long = 10_000L,
+    ): JSONObject {
         val fix = latestFix.get()
         if (fix == null) {
             return JSONObject()
                 .put("type", "loc_pong")
                 .put("ok", false)
+                .put("access_mode", mode.wireName)
+                .put("instance_id", instanceId)
+                .put("host_id", hostId ?: JSONObject.NULL)
                 .put("fix_status", "no_fix")
                 .put("recent_fixes", recentFixesJson())
         }
@@ -104,6 +113,9 @@ object LocationCache {
             return JSONObject()
                 .put("type", "loc_pong")
                 .put("ok", false)
+                .put("access_mode", mode.wireName)
+                .put("instance_id", instanceId)
+                .put("host_id", hostId ?: JSONObject.NULL)
                 .put("fix_status", "stale")
                 .put("last_fix_age_ms", ageMs)
                 .put("last_fix_accuracy_m", fix.horizontalAccuracyM ?: JSONObject.NULL)
@@ -113,7 +125,9 @@ object LocationCache {
         return JSONObject()
             .put("type", "loc_pong")
             .put("ok", true)
-            .put("host_id", hostId)
+            .put("access_mode", mode.wireName)
+            .put("instance_id", instanceId)
+            .put("host_id", hostId ?: JSONObject.NULL)
             .put("fix_sequence", fix.sequence)
             .put("phone_wall_time_ms", fix.phoneWallTimeMs)
             .put("cache_received_wall_time_ms", fix.cacheReceivedWallTimeMs)
@@ -138,12 +152,14 @@ object LocationCache {
             .put("recent_fixes", recentFixesJson())
     }
 
-    fun toHistoryJson(hostId: String): JSONObject {
+    fun toHistoryJson(mode: SharingMode, hostId: String?, instanceId: String): JSONObject {
         val fixes = recent()
         return JSONObject()
             .put("type", "loc_history")
             .put("ok", true)
-            .put("host_id", hostId)
+            .put("access_mode", mode.wireName)
+            .put("instance_id", instanceId)
+            .put("host_id", hostId ?: JSONObject.NULL)
             .put("count", fixes.size)
             .put("max_count", RECENT_FIX_LIMIT)
             .put("fixes", fixesJson(fixes))

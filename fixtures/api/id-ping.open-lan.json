@@ -1,0 +1,11 @@
+{
+  "type": "id_pong",
+  "app": "miniloc",
+  "version": "0.2.0",
+  "instance_id": "miniloc-4N9K",
+  "access_mode": "open_lan",
+  "paired_host_id": null,
+  "auth_required": false,
+  "read_auth_required": false,
+  "port": 47654
+}

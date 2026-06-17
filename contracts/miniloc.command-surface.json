@@ -38,21 +38,21 @@
     },
     {
       "name": "pairing_qr",
-      "command": "python3 tools/miniloc_pairing_qr.py --host-name <name>",
-      "purpose": "Generate a short-lived QR pairing payload and PNG.",
-      "outputs": ["miniloc_pairing_qr.png", "stdout JSON payload"]
+      "command": "python3 tools/miniloc_pairing_qr.py --host-id <id>",
+      "purpose": "Generate an ultra-compact ML1 QR pairing message and PNG.",
+      "outputs": ["miniloc_pairing_qr.png", "stdout ML1 pairing message"]
     },
     {
       "name": "discover",
       "command": "python3 tools/miniloc_discover.py --subnet <subnet> --no-poll",
-      "purpose": "Sweep an IPv4 subnet for miniloc phones.",
-      "side_effects": ["same-LAN HTTP GET /id_ping probes"]
+      "purpose": "Discover miniloc phones with mDNS and optional IPv4 subnet fallback.",
+      "side_effects": ["same-LAN mDNS browse", "same-LAN HTTP GET /id_ping probes"]
     },
     {
       "name": "poll",
-      "command": "python3 tools/miniloc_poll.py <phone-ip> --host-id <host-id> --token <token>",
-      "purpose": "Poll authenticated location data from a paired phone.",
-      "side_effects": ["same-LAN authenticated HTTP requests", "writes cache file under ~/.cache/miniloc by default"]
+      "command": "python3 tools/miniloc_poll.py <phone-ip> [--host-id <host-id> --token <token>]",
+      "purpose": "Poll location data from a paired phone or an Open LAN phone.",
+      "side_effects": ["same-LAN HTTP requests", "writes cache file under ~/.cache/miniloc by default"]
     }
   ],
   "inputs": {
@@ -63,7 +63,7 @@
   "outputs": {
     "stdout": "Human-readable text and JSON depending on command.",
     "files": ["APK outputs", "QR PNG", "lint reports", "poll cache"],
-    "machine_readable_modes": ["tools/miniloc_poll.py --compact", "JSON payload printed by tools/miniloc_pairing_qr.py"]
+    "machine_readable_modes": ["tools/miniloc_poll.py --compact", "ML1 pairing message printed by tools/miniloc_pairing_qr.py", "JSON discovery output from tools/miniloc_discover.py"]
   },
   "exit_codes": {
     "0": "success",

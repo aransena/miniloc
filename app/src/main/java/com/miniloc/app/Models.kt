@@ -6,7 +6,13 @@ import android.os.BatteryManager
 import java.time.Instant
 
 const val MINILOC_PORT = 47654
-const val APP_VERSION = "0.1.2"
+const val APP_VERSION = "0.2.0"
+const val MINILOC_NSD_SERVICE_TYPE = "_miniloc._tcp."
+
+enum class SharingMode(val wireName: String) {
+    PAIRED("paired"),
+    OPEN_LAN("open_lan"),
+}
 
 data class HostPairing(
     val hostId: String,

@@ -1,7 +1,6 @@
 package com.miniloc.app
 
 import android.content.Context
-import org.json.JSONObject
 import java.security.SecureRandom
 import java.time.Instant
 import java.util.Locale
@@ -15,6 +14,11 @@ object PairingStore {
     private const val KEY_EXPIRES_IN_S = "expires_in_s"
     private const val KEY_MINILOC_PORT = "miniloc_port"
     private const val KEY_INSTANCE_ID = "instance_id"
+    private const val KEY_OPEN_LAN_ENABLED = "open_lan_enabled"
+    private const val PAIRING_PREFIX = "ML1"
+    private const val DEFAULT_PAIRING_EXPIRES_IN_S = 600L
+    private val pairingHostIdRegex = Regex("[A-Z0-9][A-Z0-9-]{0,31}")
+    private val pairingTokenRegex = Regex("[A-Z2-7]{16,64}")
 
     fun get(context: Context): HostPairing? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -41,6 +45,7 @@ object PairingStore {
             .putString(KEY_ISSUED_AT, pairing.issuedAt)
             .putLong(KEY_EXPIRES_IN_S, pairing.expiresInSeconds)
             .putInt(KEY_MINILOC_PORT, pairing.minilocPort)
+            .putBoolean(KEY_OPEN_LAN_ENABLED, false)
             .apply()
     }
 
@@ -53,6 +58,41 @@ object PairingStore {
         }
     }
 
+    fun isOpenLanEnabled(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_OPEN_LAN_ENABLED, false)
+    }
+
+    fun enableOpenLan(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val instanceId = prefs.getString(KEY_INSTANCE_ID, null)
+        prefs.edit()
+            .remove(KEY_HOST_ID)
+            .remove(KEY_HOST_NAME)
+            .remove(KEY_PAIRING_TOKEN)
+            .remove(KEY_ISSUED_AT)
+            .remove(KEY_EXPIRES_IN_S)
+            .remove(KEY_MINILOC_PORT)
+            .putBoolean(KEY_OPEN_LAN_ENABLED, true)
+            .apply()
+        if (instanceId != null) {
+            prefs.edit().putString(KEY_INSTANCE_ID, instanceId).apply()
+        }
+    }
+
+    fun disableOpenLan(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_OPEN_LAN_ENABLED, false)
+            .apply()
+    }
+
+    fun hasSharingConfig(context: Context): Boolean {
+        return get(context) != null || isOpenLanEnabled(context)
+    }
+
+    fun serviceName(context: Context): String = instanceId(context)
+
     fun instanceId(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.getString(KEY_INSTANCE_ID, null)?.let { return it }
@@ -63,49 +103,26 @@ object PairingStore {
 
     @Throws(IllegalArgumentException::class)
     fun parsePayload(rawPayload: String): HostPairing {
-        val json = runCatching { JSONObject(rawPayload.trim()) }
-            .getOrElse { throw IllegalArgumentException("Pairing payload is not valid JSON.") }
-
-        val type = json.optString("type")
-        if (type != "miniloc_pair") {
-            throw IllegalArgumentException("Pairing payload type must be miniloc_pair.")
+        val parts = rawPayload.trim().split(":")
+        if (parts.size != 3 || parts[0] != PAIRING_PREFIX) {
+            throw IllegalArgumentException("Pairing QR must use ML1:<host_id>:<token>.")
         }
-
-        val version = json.optInt("version", -1)
-        if (version != 1) {
-            throw IllegalArgumentException("Unsupported pairing payload version: $version.")
+        val hostId = parts[1].trim()
+        val token = parts[2].trim()
+        if (hostId.isEmpty()) {
+            throw IllegalArgumentException("host_id is required.")
         }
-
-        val hostId = json.requiredString("host_id")
-        val hostName = json.requiredString("host_name")
-        val token = json.requiredString("pairing_token")
-        val issuedAt = json.requiredString("issued_at")
-        val expiresInSeconds = json.optLong("expires_in_s", 0L)
-        if (expiresInSeconds <= 0L) {
-            throw IllegalArgumentException("expires_in_s must be greater than zero.")
+        if (!pairingHostIdRegex.matches(hostId)) {
+            throw IllegalArgumentException("host_id must use A-Z, 0-9, or '-' and be at most 32 characters.")
         }
-
-        val issuedAtMillis = runCatching { Instant.parse(issuedAt).toEpochMilli() }
-            .getOrElse { throw IllegalArgumentException("issued_at must be an ISO-8601 UTC timestamp.") }
-        val expiresAtMillis = issuedAtMillis + expiresInSeconds * 1000L
-        if (System.currentTimeMillis() > expiresAtMillis) {
-            throw IllegalArgumentException("Pairing payload has expired.")
+        if (token.isEmpty()) {
+            throw IllegalArgumentException("pairing token is required.")
         }
-
-        val port = json.optInt("miniloc_port", MINILOC_PORT)
-        if (port !in 1..65535) {
-            throw IllegalArgumentException("miniloc_port must be between 1 and 65535.")
+        if (!pairingTokenRegex.matches(token)) {
+            throw IllegalArgumentException("pairing token must be uppercase base32 without padding.")
         }
-
-        return HostPairing(hostId, hostName, token, issuedAt, expiresInSeconds, port)
-    }
-
-    private fun JSONObject.requiredString(key: String): String {
-        val value = optString(key).trim()
-        if (value.isEmpty()) {
-            throw IllegalArgumentException("$key is required.")
-        }
-        return value
+        val issuedAt = Instant.ofEpochSecond(Instant.now().epochSecond).toString()
+        return HostPairing(hostId, hostId, token, issuedAt, DEFAULT_PAIRING_EXPIRES_IN_S, MINILOC_PORT)
     }
 
     private fun randomCode(length: Int): String {

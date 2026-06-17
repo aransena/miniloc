@@ -7,7 +7,7 @@
   "description": "Portable descriptors for the miniloc Android local location sensor and host helper tools.",
   "producer": {
     "project": "miniloc",
-    "version": "0.1.2",
+    "version": "0.2.0",
     "command": "manual_contract_adoption"
   },
   "contracts": [

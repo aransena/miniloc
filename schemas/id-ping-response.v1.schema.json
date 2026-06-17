@@ -3,14 +3,16 @@
   "$id": "https://miniloc.local/schemas/id-ping-response.v1.schema.json",
   "title": "miniloc /id_ping response",
   "type": "object",
-  "required": ["type", "app", "version", "instance_id", "paired_host_id", "auth_required", "port"],
+  "required": ["type", "app", "version", "instance_id", "access_mode", "paired_host_id", "auth_required", "read_auth_required", "port"],
   "properties": {
     "type": { "const": "id_pong" },
     "app": { "const": "miniloc" },
     "version": { "type": "string" },
     "instance_id": { "type": "string" },
+    "access_mode": { "enum": ["paired", "open_lan"] },
     "paired_host_id": { "type": ["string", "null"] },
-    "auth_required": { "const": true },
+    "auth_required": { "type": "boolean" },
+    "read_auth_required": { "type": "boolean" },
     "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
   },
   "additionalProperties": true
