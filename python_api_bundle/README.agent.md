@@ -1,6 +1,6 @@
 # miniloc Python API Bundle
 
-Version: `0.2.0`
+Version: `0.2.2`
 
 This directory is a copy-in Python client for consuming data from an Android phone running `miniloc`.
 

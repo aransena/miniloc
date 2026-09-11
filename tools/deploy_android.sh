@@ -9,6 +9,7 @@ DEVICE_SERIAL=""
 BUILD_FIRST=1
 LAUNCH_AFTER_INSTALL=1
 GRANT_RUNTIME_PERMISSIONS=1
+GRANT_BATTERY_EXEMPTION=1
 
 usage() {
   cat <<'EOF_USAGE'
@@ -23,6 +24,7 @@ Options:
   --skip-build        Do not run ./gradlew assembleDebug before installing.
   --no-launch         Install only; do not launch miniloc after install.
   --no-grant          Do not pass adb install -g for runtime permissions.
+  --no-battery-exempt Do not request device-idle whitelist after install.
   --help              Show this help.
 
 Environment:
@@ -154,6 +156,10 @@ while [[ "$#" -gt 0 ]]; do
       GRANT_RUNTIME_PERMISSIONS=0
       shift
       ;;
+    --no-battery-exempt)
+      GRANT_BATTERY_EXEMPTION=0
+      shift
+      ;;
     --help|-h)
       usage
       exit 0
@@ -182,6 +188,20 @@ install_args+=("$APK_PATH")
 
 echo "Installing $APK_PATH to $DEVICE_SERIAL..."
 adb_cmd "${install_args[@]}"
+
+if [[ "$GRANT_RUNTIME_PERMISSIONS" -eq 1 ]]; then
+  echo "Granting background location permission when supported..."
+  if ! adb_cmd shell pm grant "$APP_ID" android.permission.ACCESS_BACKGROUND_LOCATION >/dev/null 2>&1; then
+    echo "Warning: adb could not grant background location. Set Location to Allow all the time on the phone." >&2
+  fi
+fi
+
+if [[ "$GRANT_BATTERY_EXEMPTION" -eq 1 ]]; then
+  echo "Requesting device-idle whitelist when supported..."
+  if ! adb_cmd shell dumpsys deviceidle whitelist +"$APP_ID" >/dev/null 2>&1; then
+    echo "Warning: adb could not add miniloc to the device-idle whitelist. Use Allow unrestricted battery in the app." >&2
+  fi
+fi
 
 if [[ "$LAUNCH_AFTER_INSTALL" -eq 1 ]]; then
   echo "Launching miniloc..."

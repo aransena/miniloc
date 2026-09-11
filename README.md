@@ -1,6 +1,6 @@
 # miniloc
 
-Version: `0.2.0`
+Version: `0.2.2`
 
 `miniloc` is a minimal native Android app that turns a phone into a local-network location sensor for one paired host device.
 
@@ -89,6 +89,11 @@ Or build, install to the connected phone, grant runtime permissions, and launch:
 tools/deploy_android.sh
 ```
 
+For debug installs, the deploy script also tries to add miniloc to Android's
+device-idle whitelist so locked-screen LAN publishing can be tested without
+vendor battery optimization interrupting the service. Pass
+`--no-battery-exempt` to skip that step.
+
 For a specific phone serial:
 
 ```bash
@@ -132,8 +137,10 @@ service.
 
 For trusted private networks with multiple local consumers, miniloc starts in
 Open LAN mode when the phone app launches. This starts the foreground location
-service and HTTP server after Android permissions are granted. Read-only
-endpoints do not require pairing headers:
+service and HTTP server after foreground location and notification permissions
+are granted. Background location is optional, but helps Android restart sharing
+if the service is killed while the phone is locked. Read-only endpoints do not
+require pairing headers:
 
 ```text
 GET /id_ping
@@ -150,6 +157,18 @@ Use Open LAN mode only on networks where every local client is trusted. Anyone
 on that LAN can read location while the mode is active. Destructive commands,
 including `/forget_pairing`, are not opened by Open LAN mode. QR pairing is
 available from the app as `Pair with QR instead`.
+
+While sharing is active, miniloc holds a partial CPU wake lock, a high
+performance Wi-Fi lock, and a multicast lock so the same-LAN HTTP server and
+mDNS advertisement remain reachable when the phone is locked. These locks are
+released when sharing stops.
+
+The foreground service also watches Android network changes and periodically
+refreshes the local publisher. If Wi-Fi is reconfigured while the screen is
+locked, miniloc re-acquires its locks, restarts the HTTP listener, and
+re-registers mDNS. It also restarts fused-location callbacks if no fixes arrive
+for an extended period. On phones with aggressive vendor power management, use
+the in-app `Allow unrestricted battery` action before long locked-screen tests.
 
 ## Discovery And Polling
 
@@ -220,7 +239,7 @@ python3 tools/miniloc_poll.py \
   --token '<pairing_token>'
 ```
 
-The Android service requests high-accuracy fused location updates every `200 ms`, with a `250 ms` max batching delay. Android may still deliver slower updates depending on hardware, signal quality, battery saver, thermal state, screen state, and whether precise location is granted.
+The Android service requests high-accuracy fused location updates every `200 ms`, with a `250 ms` max batching delay. Android may still deliver slower updates depending on hardware, signal quality, battery saver, thermal state, screen state, and whether precise location is granted. Check `/status` fields such as `network_publish_error`, `network_last_refresh_age_ms`, `battery_optimization_ignored`, `power_save_mode_active`, and `location_update_error` during locked-screen tests.
 
 To inspect whether new fixes are actually arriving, use compact polling diagnostics:
 
@@ -297,7 +316,7 @@ Compatibility rules:
 - Stable fields: endpoint paths/methods, auth header names, response `type` and
   `ok`, location coordinate/timing field names, and required pairing payload
   fields.
-- Diagnostic fields: `battery_pct`, `source_batch_size`,
+- Diagnostic fields: `battery_pct`, `power_save_mode_active`, `source_batch_size`,
   `source_batch_index`, `delivery_latency_ms`, and `recent_fixes`; consumers
   should tolerate missing or additional diagnostic fields unless a schema marks
   them required.
@@ -329,6 +348,10 @@ persisted stream bundles, fleet deployments, OTA updates, or cloud sync.
 
 - Keep the phone and host on the same LAN.
 - Confirm the phone granted camera, precise location, and notification permissions.
+  Grant background location too when diagnosing service restart after Android kills it.
+- Tap `Allow unrestricted battery` in the app if `/status` reports
+  `battery_optimization_ignored=false` or the phone disappears when locked.
+- Turn off Battery Saver if `/status` reports `power_save_mode_active=true`.
 - Confirm Android shows the persistent `miniloc active` foreground-service notification.
 - Disable VPN/client isolation on the Wi-Fi network if the host cannot reach the phone IP.
 - Use the phone UI to stop sharing or forget the pairing at any time.

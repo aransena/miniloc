@@ -10,9 +10,9 @@ class MinilocNsdAdvertiser(private val context: Context) {
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var registrationKey: String? = null
 
-    fun start(mode: SharingMode, port: Int) {
+    fun start(mode: SharingMode, port: Int, force: Boolean = false) {
         val key = "${mode.wireName}:$port"
-        if (registrationKey == key && registrationListener != null) return
+        if (!force && registrationKey == key && registrationListener != null) return
         stop()
 
         val serviceInfo = NsdServiceInfo().apply {

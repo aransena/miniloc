@@ -1,7 +1,7 @@
 {
   "type": "id_pong",
   "app": "miniloc",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "instance_id": "miniloc-4N9K",
   "access_mode": "paired",
   "paired_host_id": "7K3P",

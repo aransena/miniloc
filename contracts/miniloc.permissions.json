@@ -9,7 +9,7 @@
     },
     {
       "name": "android_location",
-      "purpose": "Collect cached fused location fixes after local confirmation."
+      "purpose": "Collect cached fused location fixes after local confirmation, including while the phone is locked."
     },
     {
       "name": "android_notifications",
@@ -24,6 +24,14 @@
       "purpose": "Advertise active miniloc sharing with Android NSD/mDNS on the local network."
     },
     {
+      "name": "android_wake_lock",
+      "purpose": "Keep the foreground sharing service and same-LAN HTTP server available while the phone is locked."
+    },
+    {
+      "name": "android_battery_optimization_exemption",
+      "purpose": "Let the phone user exempt miniloc from battery optimization when the device vendor stops network publishing while locked."
+    },
+    {
       "name": "adb_deploy",
       "purpose": "Install and launch debug APK during development."
     },
@@ -36,12 +44,17 @@
     "android_permissions": [
       "ACCESS_FINE_LOCATION",
       "ACCESS_COARSE_LOCATION",
+      "ACCESS_BACKGROUND_LOCATION",
       "FOREGROUND_SERVICE",
       "FOREGROUND_SERVICE_LOCATION",
+      "FOREGROUND_SERVICE_CONNECTED_DEVICE",
       "POST_NOTIFICATIONS",
       "INTERNET",
       "ACCESS_NETWORK_STATE",
+      "ACCESS_WIFI_STATE",
       "CHANGE_WIFI_MULTICAST_STATE",
+      "WAKE_LOCK",
+      "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
       "CAMERA"
     ],
     "network": ["0.0.0.0:47654 on same LAN"],

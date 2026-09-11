@@ -5,7 +5,7 @@
   "label": "miniloc Android phone location sensor",
   "producer": {
     "project": "miniloc",
-    "version": "0.2.0"
+    "version": "0.2.2"
   },
   "capabilities": {
     "streams": [
@@ -24,12 +24,12 @@
       }
     ],
     "controls": ["pair", "start_sharing", "start_default_open_lan_sharing", "stop_sharing", "forget_pairing"],
-    "permissions": ["camera", "precise_or_coarse_location", "post_notifications", "same_lan_network"],
+    "permissions": ["camera", "precise_or_coarse_location", "post_notifications", "same_lan_network", "wake_lock", "battery_optimization_exemption_optional"],
     "fixtures": ["python_api_bundle/tests/test_client.py", "docs/manual-testing-protocol.md"]
   },
   "runtime": {
     "transport": "same-LAN HTTP",
     "api_surface": "miniloc.api-surface.json",
-    "service": "Android foreground service with foregroundServiceType=location"
+    "service": "Android foreground service with foregroundServiceType=location|connectedDevice"
   }
 }

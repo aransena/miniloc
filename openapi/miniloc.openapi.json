@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "miniloc Local HTTP API",
-    "version": "0.2.0",
+    "version": "0.2.2",
     "description": "Same-LAN HTTP API exposed by an Android phone running miniloc after local QR pairing or explicit Open LAN sharing."
   },
   "servers": [

@@ -6,11 +6,14 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
+import android.provider.Settings
 import android.text.format.Formatter
 import android.view.Gravity
 import android.view.MotionEvent
@@ -96,7 +99,9 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (previewView == null) {
-            mainHandler.post(refreshRunnable)
+            if (!continuePendingSharingAfterPermissions()) {
+                mainHandler.post(refreshRunnable)
+            }
         }
     }
 
@@ -130,11 +135,7 @@ class MainActivity : ComponentActivity() {
                 val locationGranted = hasLocationPermission()
                 val notificationGranted = hasNotificationPermission()
                 if (locationGranted && notificationGranted) {
-                    when {
-                        pendingOpenLanStart -> startOpenLanSharing()
-                        pendingPairing != null -> pendingPairing?.let { savePairingAndStart(it) }
-                        else -> showUnpaired()
-                    }
+                    continuePendingSharingAfterPermissions()
                 } else {
                     toast("Location and notification permissions are required to share location.")
                     when {
@@ -150,9 +151,26 @@ class MainActivity : ComponentActivity() {
     private fun showCurrentState() {
         when {
             PairingStore.get(this) != null -> showActive()
-            PairingStore.isOpenLanEnabled(this) -> showOpenLanActive()
+            PairingStore.isOpenLanEnabled(this) -> {
+                if (!resumeOpenLanSharingIfNeeded()) {
+                    showOpenLanActive()
+                }
+            }
             else -> startDefaultOpenLan()
         }
+    }
+
+    private fun resumeOpenLanSharingIfNeeded(): Boolean {
+        if (LocationForegroundService.isRunning()) return false
+        pendingPairing = null
+        pendingOpenLanStart = true
+        if (!hasLocationPermission() || !hasNotificationPermission()) {
+            requestSharingPermissions { startOpenLanSharing() }
+            return true
+        }
+        pendingOpenLanStart = false
+        startSharingService()
+        return false
     }
 
     private fun startDefaultOpenLan() {
@@ -268,6 +286,21 @@ class MainActivity : ComponentActivity() {
         root.addView(button("Pair with QR instead") { switchToPairingScan() })
     }
 
+    private fun showBackgroundLocationOptional() {
+        stopCamera()
+        resetRoot()
+        root.addView(title("miniloc"))
+        root.addView(detail("Background location optional"))
+        root.addView(body("Set Location to ${backgroundLocationOptionLabel()} so Android can restart sharing after killing the service while the phone is locked."))
+        root.addView(button("Open location settings") { openAppLocationSettings() })
+        root.addView(button("Start sharing now") { continuePendingSharingAfterPermissions(skipBackgroundPrompt = true) })
+        pendingPairing?.let { pairing ->
+            root.addView(button("Back to pairing") { showPairingConfirmation(pairing) })
+        } ?: run {
+            root.addView(button("Pair with QR instead") { switchToPairingScan() })
+        }
+    }
+
     private fun ensureSharingPermissions(pairing: HostPairing) {
         pendingPairing = pairing
         pendingOpenLanStart = false
@@ -289,11 +322,31 @@ class MainActivity : ComponentActivity() {
         if (!hasNotificationPermission() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
-        if (permissions.isEmpty()) {
-            onGranted()
-        } else {
-            ActivityCompat.requestPermissions(this, permissions.toTypedArray(), REQUEST_SHARING_PERMISSIONS)
+        when {
+            permissions.isNotEmpty() -> {
+                ActivityCompat.requestPermissions(this, permissions.toTypedArray(), REQUEST_SHARING_PERMISSIONS)
+            }
+            !hasBackgroundLocationPermission() -> showBackgroundLocationOptional()
+            else -> onGranted()
         }
+    }
+
+    private fun continuePendingSharingAfterPermissions(skipBackgroundPrompt: Boolean = false): Boolean {
+        if (!pendingOpenLanStart && pendingPairing == null) return false
+        if (!hasLocationPermission() || !hasNotificationPermission()) {
+            showOpenLanPermissionRequired()
+            return true
+        }
+        if (!skipBackgroundPrompt && !hasBackgroundLocationPermission()) {
+            showBackgroundLocationOptional()
+            return true
+        }
+        when {
+            pendingOpenLanStart -> startOpenLanSharing()
+            pendingPairing != null -> pendingPairing?.let { savePairingAndStart(it) }
+            else -> showUnpaired()
+        }
+        return true
     }
 
     private fun savePairingAndStart(pairing: HostPairing) {
@@ -321,6 +374,7 @@ class MainActivity : ComponentActivity() {
         root.addView(body("Service: ${if (LocationForegroundService.isRunning()) "active" else "stopped"}"))
         root.addView(body("Phone IP: ${phoneIpAddress() ?: "unknown"}"))
         root.addView(body("Port: ${pairing.minilocPort}"))
+        addBatteryOptimizationAction()
 
         val fix = LocationCache.get()
         if (fix == null) {
@@ -365,6 +419,7 @@ class MainActivity : ComponentActivity() {
         val ip = phoneIpAddress()
         root.addView(body("Phone URL: ${ip?.let { "http://$it:$MINILOC_PORT" } ?: "unknown"}"))
         root.addView(body("Discovery: ${PairingStore.serviceName(this)}.$MINILOC_NSD_SERVICE_TYPE"))
+        addBatteryOptimizationAction()
 
         val fix = LocationCache.get()
         if (fix == null) {
@@ -546,9 +601,63 @@ class MainActivity : ComponentActivity() {
         return fine == PackageManager.PERMISSION_GRANTED || coarse == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun hasBackgroundLocationPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun hasNotificationPermission(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
         return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun backgroundLocationOptionLabel(): CharSequence {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            packageManager.backgroundPermissionOptionLabel
+        } else {
+            "Allow all the time"
+        }
+    }
+
+    private fun openAppLocationSettings() {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", packageName, null),
+        )
+        startActivity(intent)
+    }
+
+    private fun addBatteryOptimizationAction() {
+        if (isPowerSaveModeActive()) {
+            root.addView(body("Battery saver is active and may interrupt locked-screen sharing."))
+        }
+        if (isIgnoringBatteryOptimizations()) return
+        root.addView(body("Battery optimization may interrupt sharing while the phone is locked."))
+        root.addView(button("Allow unrestricted battery") { requestBatteryOptimizationExemption() })
+    }
+
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        val powerManager = getSystemService(PowerManager::class.java) ?: return true
+        return powerManager.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    private fun isPowerSaveModeActive(): Boolean {
+        val powerManager = getSystemService(PowerManager::class.java) ?: return false
+        return powerManager.isPowerSaveMode
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        val requestIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:$packageName")
+        }
+        runCatching {
+            startActivity(requestIntent)
+        }.onFailure {
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        }
     }
 
     private fun resetRoot() {
@@ -700,7 +809,7 @@ class MainActivity : ComponentActivity() {
     @Suppress("DEPRECATION")
     private fun wifiIpFallback(): String? {
         val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return null
-        val ip = wifiManager.connectionInfo?.ipAddress ?: return null
+        val ip = runCatching { wifiManager.connectionInfo?.ipAddress }.getOrNull() ?: return null
         if (ip == 0) return null
         return Formatter.formatIpAddress(ip)
     }

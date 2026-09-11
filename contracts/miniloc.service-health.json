@@ -29,6 +29,60 @@
       "healthy_when": "granted"
     },
     {
+      "name": "background_location_permission",
+      "type": "dependency",
+      "source": "GET /status background_location_permission",
+      "healthy_when": "granted or not_required"
+    },
+    {
+      "name": "location_update_error",
+      "type": "dependency",
+      "source": "GET /status location_update_error",
+      "healthy_when": null
+    },
+    {
+      "name": "availability_wake_lock_active",
+      "type": "readiness",
+      "source": "GET /status availability_wake_lock_active",
+      "healthy_when": true
+    },
+    {
+      "name": "availability_wifi_lock_active",
+      "type": "readiness",
+      "source": "GET /status availability_wifi_lock_active",
+      "healthy_when": true
+    },
+    {
+      "name": "availability_multicast_lock_active",
+      "type": "readiness",
+      "source": "GET /status availability_multicast_lock_active",
+      "healthy_when": true
+    },
+    {
+      "name": "availability_lock_error",
+      "type": "dependency",
+      "source": "GET /status availability_lock_error",
+      "healthy_when": null
+    },
+    {
+      "name": "network_publish_error",
+      "type": "dependency",
+      "source": "GET /status network_publish_error",
+      "healthy_when": null
+    },
+    {
+      "name": "battery_optimization_ignored",
+      "type": "resilience",
+      "source": "GET /status battery_optimization_ignored",
+      "healthy_when": true
+    },
+    {
+      "name": "power_save_mode_active",
+      "type": "resilience",
+      "source": "GET /status power_save_mode_active",
+      "healthy_when": false
+    },
+    {
       "name": "last_fix_age_ms",
       "type": "freshness",
       "source": "GET /status last_fix_age_ms or GET /loc_ping age_ms",
@@ -39,6 +93,8 @@
     { "name": "last_fix_age_ms", "unit": "milliseconds" },
     { "name": "last_fix_accuracy_m", "unit": "meters" },
     { "name": "recent_fix_count", "unit": "count" },
+    { "name": "network_last_refresh_age_ms", "unit": "milliseconds" },
+    { "name": "power_save_mode_active", "unit": "boolean" },
     { "name": "battery_pct", "unit": "percent" }
   ],
   "incidents": []

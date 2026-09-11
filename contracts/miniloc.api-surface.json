@@ -84,7 +84,7 @@
     "type": "bearer_token_headers_or_explicit_open_lan_mode",
     "headers": ["X-Miniloc-Host-Id", "X-Miniloc-Token"],
     "token_source": "ML1 QR pairing message accepted by local phone confirmation",
-    "open_lan": "Open LAN is the default phone-app launch mode. After Android permissions are granted, read-only endpoints do not require headers and advertise auth_required=false.",
+    "open_lan": "Open LAN is the default phone-app launch mode. After foreground location and notification permissions are granted, read-only endpoints do not require headers and advertise auth_required=false. Background location is optional for restart resilience.",
     "expiry": "Pairing expires 600 seconds after phone scan time and is cleared locally when expired.",
     "transport_security": "Plain HTTP; intended only for trusted same-LAN use."
   },
@@ -102,7 +102,7 @@
     "payload_size": "small_json_objects"
   },
   "compatibility": {
-    "version": "0.2.0",
+    "version": "0.2.2",
     "stable_fields": [
       "endpoint paths and methods",
       "authentication header names",
@@ -112,6 +112,7 @@
     ],
     "diagnostic_fields": [
       "battery_pct",
+      "power_save_mode_active",
       "source_batch_size",
       "source_batch_index",
       "delivery_latency_ms",

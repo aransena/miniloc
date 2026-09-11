@@ -32,7 +32,8 @@ results in the release notes or issue tracker for the build under test.
 1. Run `./gradlew assembleDebug`.
 2. Install with `tools/deploy_android.sh` or `adb install -r`.
 3. Launch miniloc.
-4. Grant precise location and notification permissions if prompted.
+4. Grant precise location and notification permissions if prompted. Background
+   location can be granted from app settings to validate restart resilience.
 5. Confirm the app opens to the Open LAN sharing screen.
 
 Pass criteria:
@@ -45,7 +46,8 @@ Pass criteria:
 ## Default Open LAN Flow
 
 1. Launch miniloc.
-2. Grant precise location and notification permissions if prompted.
+2. Grant precise location and notification permissions if prompted. Background
+   location can be granted from app settings to validate restart resilience.
 3. Discover with mDNS and subnet fallback:
 
    ```bash
@@ -63,6 +65,13 @@ Pass criteria:
 - Open LAN sharing starts automatically after app launch and required Android permission grants.
 - Android shows the persistent `miniloc active` foreground-service notification.
 - `/id_ping` reports `access_mode=open_lan` and `auth_required=false`.
+- `/status` reports `availability_wake_lock_active=true`,
+  `availability_wifi_lock_active=true`, and
+  `availability_multicast_lock_active=true`.
+- `/status` reports `network_publish_error=null`; for long locked-screen tests,
+  `battery_optimization_ignored=true` is preferred.
+- `/status` reports `power_save_mode_active=false`; Battery Saver can throttle
+  locked-screen location and local-network reachability.
 - `/status`, `/loc_ping`, and `/loc_history` return HTTP `200` without pairing headers.
 - `/forget_pairing` is not available without paired credentials.
 - Tapping `Stop sharing` disables Open LAN read access for the current app session.
@@ -82,7 +91,8 @@ Pass criteria:
 4. Scan `miniloc_pairing_qr.png`.
 5. Confirm the displayed host name and host ID match the generated payload.
 6. Tap `Start sharing`.
-7. Grant precise location and notification permissions if prompted.
+7. Grant precise location and notification permissions if prompted. Background
+   location can be granted from app settings to validate restart resilience.
 
 Pass criteria:
 
@@ -146,7 +156,10 @@ Pass criteria:
 
 - `fix_sequence` advances during normal movement.
 - `age_ms` remains acceptable for the deployment target.
-- Polling continues while the phone is locked.
+- Direct-IP polling continues while the phone is locked.
+- `/status` keeps reporting active availability locks, `network_publish_error=null`,
+  `power_save_mode_active=false`, and a recent `network_last_refresh_age_ms`
+  while the phone is locked.
 - Android may batch updates, but `age_ms` must not grow indefinitely while
   sharing is active and location services are available.
 

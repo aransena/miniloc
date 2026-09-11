@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONObject
@@ -93,6 +95,7 @@ class MinilocHttpServer(
 
     private fun status(access: ReadAccess): Response {
         val latest = LocationCache.get()
+        val lastNetworkRefreshElapsedMs = LocationForegroundService.lastNetworkPublishElapsedMs()
         return json(
             Response.Status.OK,
             JSONObject()
@@ -110,8 +113,22 @@ class MinilocHttpServer(
                 .put("discovery_service_name", PairingStore.serviceName(appContext))
                 .put("foreground_service_active", LocationForegroundService.isRunning())
                 .put("http_server_active", true)
-                .put("location_permission", permissionState(Manifest.permission.ACCESS_FINE_LOCATION))
+                .put("location_permission", locationPermissionState())
+                .put("background_location_permission", backgroundLocationPermissionState())
                 .put("notification_permission", notificationPermissionState())
+                .put("location_update_error", LocationForegroundService.locationUpdateError() ?: JSONObject.NULL)
+                .put("availability_wake_lock_active", LocationForegroundService.isWakeLockHeld())
+                .put("availability_wifi_lock_active", LocationForegroundService.isWifiLockHeld())
+                .put("availability_multicast_lock_active", LocationForegroundService.isMulticastLockHeld())
+                .put("availability_lock_error", LocationForegroundService.availabilityLockError() ?: JSONObject.NULL)
+                .put("network_publish_error", LocationForegroundService.networkPublishError() ?: JSONObject.NULL)
+                .put(
+                    "network_last_refresh_age_ms",
+                    lastNetworkRefreshElapsedMs?.let { (SystemClock.elapsedRealtime() - it).coerceAtLeast(0L) }
+                        ?: JSONObject.NULL,
+                )
+                .put("battery_optimization_ignored", batteryOptimizationIgnored() ?: JSONObject.NULL)
+                .put("power_save_mode_active", powerSaveModeActive() ?: JSONObject.NULL)
                 .put("last_fix_sequence", latest?.sequence ?: JSONObject.NULL)
                 .put("last_fix_age_ms", latest?.ageMs() ?: JSONObject.NULL)
                 .put("last_fix_accuracy_m", latest?.horizontalAccuracyM ?: JSONObject.NULL)
@@ -179,9 +196,34 @@ class MinilocHttpServer(
         }
     }
 
+    private fun locationPermissionState(): String {
+        val fine = ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarse = ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_COARSE_LOCATION)
+        return if (fine == PackageManager.PERMISSION_GRANTED || coarse == PackageManager.PERMISSION_GRANTED) {
+            "granted"
+        } else {
+            "denied"
+        }
+    }
+
+    private fun backgroundLocationPermissionState(): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return "not_required"
+        return permissionState(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+    }
+
     private fun notificationPermissionState(): String {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return "not_required"
         return permissionState(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun batteryOptimizationIgnored(): Boolean? {
+        val powerManager = appContext.getSystemService(PowerManager::class.java) ?: return null
+        return powerManager.isIgnoringBatteryOptimizations(appContext.packageName)
+    }
+
+    private fun powerSaveModeActive(): Boolean? {
+        val powerManager = appContext.getSystemService(PowerManager::class.java) ?: return null
+        return powerManager.isPowerSaveMode
     }
 
     private fun unauthorized(): Response {

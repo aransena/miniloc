@@ -5,7 +5,7 @@
   "project": {
     "name": "miniloc",
     "description": "Native Android app that exposes a phone's locally confirmed location as a same-LAN HTTP sensor for one paired host.",
-    "version": "0.2.0",
+    "version": "0.2.2",
     "language": ["Kotlin", "Python", "Bash"],
     "platforms": ["Android", "Linux host"]
   },

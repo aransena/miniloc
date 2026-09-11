@@ -7,7 +7,7 @@
       "min_sdk": 26,
       "target_sdk": 35,
       "compile_sdk": 35,
-      "foreground_service_type": "location"
+      "foreground_service_type": "location|connectedDevice"
     },
     "jvm": "Java 17 or workspace-local Temurin 17",
     "gradle": "8.7",
@@ -32,7 +32,7 @@
     "host": ["same-LAN computer capable of running Python helper tools"]
   },
   "services": {
-    "local_http": "Phone binds 0.0.0.0:47654 while sharing is active.",
+    "local_http": "Phone binds 0.0.0.0:47654 while sharing is active and refreshes publication after Android network changes.",
     "cloud": "none",
     "analytics": "none"
   },

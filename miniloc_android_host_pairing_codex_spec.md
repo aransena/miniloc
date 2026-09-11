@@ -346,7 +346,7 @@ Example response:
 {
   "type": "id_pong",
   "app": "miniloc",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "instance_id": "miniloc-4N9K",
   "paired_host_id": "7K3P",
   "auth_required": true,
@@ -360,7 +360,7 @@ If unpaired:
 {
   "type": "id_pong",
   "app": "miniloc",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "instance_id": "miniloc-4N9K",
   "paired_host_id": null,
   "auth_required": true,
@@ -381,12 +381,13 @@ Example response:
   "type": "status",
   "ok": true,
   "app": "miniloc",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "paired_host_id": "7K3P",
   "foreground_service_active": true,
   "http_server_active": true,
   "location_permission": "granted",
   "notification_permission": "granted",
+  "power_save_mode_active": false,
   "last_fix_age_ms": 315,
   "last_fix_accuracy_m": 3.2,
   "battery_pct": 73
